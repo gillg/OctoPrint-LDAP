@@ -7,4 +7,7 @@
 # variables INSTALL_REQUIRES and EXTRA_REQUIRES.
 ###
 
+## To install correctly python-ldap you need :
+# apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
+
 .
