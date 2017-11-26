@@ -35,6 +35,6 @@ accessControl:
 
 #### Installation
 
-You can install it using ```pip install https://github.com/malnvenshorn/OctoPrint-FilamentManager/archive/master.zip```
+You can install it using ```pip install https://github.com/gillg/OctoPrint-LDAP/archive/master.zip```
 
 Or with plugin manager into OctoPrint
