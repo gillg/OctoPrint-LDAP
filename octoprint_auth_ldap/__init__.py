@@ -1,13 +1,17 @@
 # coding=utf-8
 from __future__ import absolute_import
 
+import octoprint.plugin
 from octoprint.users import FilebasedUserManager, User
 from octoprint.settings import settings
 import ldap
 import uuid
 
 
-class LDAPUserManager(FilebasedUserManager):
+class LDAPUserManager(FilebasedUserManager,
+                      octoprint.plugin.SettingsPlugin,
+                      octoprint.plugin.TemplatePlugin):
+
     #Login phase :
     #  - findUser called, if it return a user
     #    - chaeckPassword called, if it return True
@@ -114,14 +118,60 @@ class LDAPUserManager(FilebasedUserManager):
 
         return connection
 
-def ldap_user_factory(components, settings, *args, **kwargs):
-    return LDAPUserManager();
+    # Softwareupdate hook
+
+    def get_update_information(self):
+        return dict(
+            filamentmanager=dict(
+                displayName="Auth LDAP",
+                displayVersion=self._plugin_version,
+
+                # version check: github repository
+                type="github_release",
+                user="gillg",
+                repo="OctoPrint-LDAP",
+                current=self._plugin_version,
+
+                # update method: pip
+                pip="https://github.com/gillg/OctoPrint-LDAP/archive/{target_version}.zip"
+            )
+        )
+
+    # UserManager hook
+
+    def ldap_user_factory(components, settings, *args, **kwargs):
+        return LDAPUserManager()
+
+    # SettingsPlugin
+
+    def get_settings_defaults(self):
+        return dict(
+            accessControl=dict(
+                ldap_uri=None,
+                ldap_tls_reqcert='demand',
+                ldap_search_base=None
+            )
+        )
+
+    # TemplatePlugin
+
+    def get_template_configs(self):
+        return [
+            dict(type="settings", template="settings.jinja2")
+        ]
+
 
 __plugin_name__ = "Auth LDAP"
-__plugin_version__ = "1.0.0"
 
 def __plugin_load__():
+    global __plugin_implementation__
+    __plugin_implementation__ = LDAPUserManager()
+
     global __plugin_hooks__
     __plugin_hooks__ = {
-        "octoprint.users.factory": ldap_user_factory
+        "octoprint.users.factory": __plugin_implementation__.ldap_user_factory,
+        "octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information,
     }
+
+
+#@TODO Command clean LDAP users deleted

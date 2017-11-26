@@ -1,57 +1,40 @@
-OctoPrint Plugin Skeleton
+OctoPrint LDAP auth Plugin
 =========================
 
-This is a basic plugin skeleton that you can use as a basis for your own OctoPrint plugin.
+This plugin allow users to be connected using an LDAP server.
+This system works 
 
-You can copy the files to a folder of your choice, or just clone this repository, renaming it in the process. Then 
-modify ``setup.py`` to fit your plugin, rename ``octoprint_skeleton`` accordingly and finally implement your plugin 
-under ``octoprint_<plugin identifier>``.
+#### Details
 
-Example Usage
--------------
+When you try to login, OctoPrint search for user in this local database (users.yaml)
+- If it found a user, check if this user exists also on LDAP
+- If user exists on LDAP, use LDAP bind() to check login / password
+- If user not exists on LDAP, use native password system to check it
 
-Clone your repository into a new development directory and rename ``octoprint_skeleton``:
+======================================
 
-    git clone https://github.com/OctoPrint/OctoPrint-PluginSkeleton OctoPrint-MyNewPlugin
-    cd OctoPrint-MyNewPlugin
-    mv octoprint_skeleton octoprint_mynewplugin
+- If it not found a user in local database, try to connect directly on LDAP
+- If login on LDAP il OK, a new local user is added with role "user" and a random password (password should never be used)
+- User is connected
 
-Modify `setup.py`'s `plugin_<xyz>` settings so that they match your plugin, e.g.:
+======================================
 
-``` python
-plugin_identifier = "mynewplugin"
-plugin_name = "OctoPrint-MyNewPlugin"
-plugin_version = "1.0"
-plugin_description = "Awesome plugin that does something"
-plugin_author = "You"
-plugin_author_email = "you@somewhere.net"
-plugin_url = "https://github.com/you/OctoPrint-MyNewPlugin"
+- An admin (default user for exemple), could change a user permissions or account state.
+- Password of LDAP users can't be changed
+
+#### Configuration
+
+You could configure LDAP server in plugin config, or manually in config.yaml
+
+```
+accessControl:
+  ldap_uri: ldaps://ldap.server.com/
+  ldap_tls_reqcert: demand
+  ldap_search_base: dc=server,dc=com
 ```
 
-Then implement your plugin under ``octoprint_mynewplugin`` (don't forget to adjust ``__init__.py``!), e.g.:
+#### Installation
 
-``` python
-# coding=utf-8
-from __future__ import absolute_import
+You can install it using ```pip install https://github.com/malnvenshorn/OctoPrint-FilamentManager/archive/master.zip```
 
-import octoprint.plugin
-
-class HelloWorldPlugin(octoprint.plugin.StartupPlugin):
-    def on_after_startup(self):
-        self._logger.info("Hello World!")
-        
-__plugin_name__ = "Hello World"
-__plugin_implementation__ = HelloWorldPlugin()
-```
-
-Test it (e.g. via ``python setup.py develop``). If everything works, write a nice ``README.md``, replacing the existing one.
-Commit your code, then push it to your plugin's repository (this assumes you already created it on Github as
-``you/OctoPrint-MyNewPlugin``), e.g.:
-
-    git commit -a -m "Initial commit of MyNewPlugin"
-    git remote set-url origin git@github.com:you/OctoPrint-MyNewPlugin.git
-    git push -u origin master
-
-Congratulations, you are now the proud maintainer of a new OctoPrint plugin! :) Don't forget to add an entry to the
-[wiki](https://github.com/foosel/OctoPrint/wiki#plugins) once it's suitable for general consumption, so that others
-may find it!
+Or with plugin manager into OctoPrint
