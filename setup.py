@@ -4,7 +4,7 @@
 ### Do not forget to adjust the following variables to your own plugin.
 
 # The plugin's identifier, has to be unique
-plugin_identifier = "auth_ldap"
+plugin_identifier = "authldap"
 
 # The plugin's python package, should be "octoprint_<plugin identifier>", has to be unique
 plugin_package = "octoprint_%s" % plugin_identifier
