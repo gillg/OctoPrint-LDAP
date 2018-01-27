@@ -23,6 +23,8 @@ class LDAPUserManager(FilebasedUserManager,
 
             username = self.escapeLDAP(username)
             dn = self.findLDAPUser(username)
+            if dn is None:
+                return False
             connection.bind_s(dn, password)
             connection.unbind_s()
 
@@ -65,6 +67,7 @@ class LDAPUserManager(FilebasedUserManager,
 
     def findLDAPUser(self, userid):
         ldap_search_base = settings().get(["accessControl", "ldap_search_base"])
+        groups = settings().get(["accessControl", "groups"])
         userid = self.escapeLDAP(userid)
 
         if ldap_search_base is None:
@@ -74,14 +77,45 @@ class LDAPUserManager(FilebasedUserManager,
         try:
             connection = self.getLDAPClient()
 
+            #verify user)
             result = connection.search_s(ldap_search_base, ldap.SCOPE_SUBTREE, "uid=" + userid)
-            connection.unbind_s()
-            if (result is None or len(result) == 0):
+            if result is None or len(result) == 0:
                 return None
+            self._logger.error("LDAP-AUTH: User found!")
+
+            #check group(s)
+            if groups is not None:
+                self._logger.error("LDAP-AUTH: Checking Groups...")
+                group_filter = ""
+                if "," in groups:
+                    group_list = groups.split(",")
+                    group_filter = "(|"
+                    for g in group_list:
+                        group_filter = group_filter + "(cn=%s)" % g
+                    group_filter = group_filter + ")"
+                else:
+                    group_filter = "(cn=%s)" % groups
+
+                query = "(&(objectClass=posixGroup)%s(memberUid=%s))" % (group_filter, userid)
+                self._logger.error("LDAP-AUTH QUERY:" + query)
+                group_result = connection.search_s(ldap_search_base, ldap.SCOPE_SUBTREE, query)
+
+                if group_result is None or len(group_result) == 0:
+                    print("LDAP-AUTH: Group not found")
+                    return None
+
+                self._logger.error("LDAP-AUTH: Group matched!")
+
+            #disconnect
+            connection.unbind_s()
 
             #Get the DN of first user found
             dn, data = result[0]
             return dn
+
+        except ldap.NO_SUCH_OBJECT:
+            self._logger.error("LDAP-AUTH: NO_SUCH_OBJECT")
+            return None
 
         except ldap.LDAPError, e:
             if type(e.message) == dict:
@@ -149,7 +183,8 @@ class LDAPUserManager(FilebasedUserManager,
             accessControl=dict(
                 ldap_uri=None,
                 ldap_tls_reqcert='demand',
-                ldap_search_base=None
+                ldap_search_base=None,
+                groups=None
             )
         )
 
