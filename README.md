@@ -31,7 +31,12 @@ accessControl:
   ldap_uri: ldaps://ldap.server.com/
   ldap_tls_reqcert: demand
   ldap_search_base: dc=server,dc=com
+  groups: TheGroupName
 ```
+
+#### Groups
+- You can list multiple groups via comma seperation: Group1, Group2, Group3. 
+- Leaving blank will skip a group check.
 
 #### Installation
 
