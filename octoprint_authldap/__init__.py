@@ -8,15 +8,13 @@ import ldap
 import uuid
 
 
-
 class LDAPUserManager(FilebasedUserManager,
                       octoprint.plugin.SettingsPlugin,
                       octoprint.plugin.TemplatePlugin):
-
-	# Login phase :
-	# - findUser called, if it return a user
-	# - checkPassword called, if it return True
-	# - login_user called with User returned by previous findUser
+    # Login phase :
+    # - findUser called, if it return a user
+    # - checkPassword called, if it return True
+    # - login_user called with User returned by previous findUser
 
     def checkPassword(self, username, password):
         try:
@@ -135,41 +133,40 @@ class LDAPUserManager(FilebasedUserManager,
 
         return None
 
-	def getLDAPClient(self):
-		self._logger.debug("Creating LDAP Client")
-		ldap_server = settings().get(["plugins", "authldap", "ldap_uri"])
-		self._logger.debug("LDAP URL %s" % ldap_server)
-		if not ldap_server:
-			self._logger.debug("UserManager: %s" % settings().get(["accessControl", "userManager"]))
-			raise Exception("LDAP conf error, server is missing")
+    def getLDAPClient(self):
+        self._logger.debug("Creating LDAP Client")
+        ldap_server = settings().get(["plugins", "authldap", "ldap_uri"])
+        self._logger.debug("LDAP URL %s" % ldap_server)
+        if not ldap_server:
+            self._logger.debug("UserManager: %s" % settings().get(["accessControl", "userManager"]))
+            raise Exception("LDAP conf error, server is missing")
 
-		connection = ldap.initialize(ldap_server)
-		connection.set_option(ldap.OPT_REFERRALS,0)
-		self._logger.debug("LDAP initialized")
+        connection = ldap.initialize(ldap_server)
+        connection.set_option(ldap.OPT_REFERRALS, 0)
+        self._logger.debug("LDAP initialized")
 
-		method = settings().get(["plugins", "authldap", "ldap_method"])
-		if (ldap_server.startswith('ldaps://') or method == 'TLS'):
-			self._logger.debug("LDAP is using TLS, setting ldap options...")
-			ldap_verifypeer = settings().get(
-				["plugins", "authldap", "ldap_tls_reqcert"])
+        method = settings().get(["plugins", "authldap", "ldap_method"])
+        if (ldap_server.startswith('ldaps://') or method == 'TLS'):
+            self._logger.debug("LDAP is using TLS, setting ldap options...")
+            ldap_verifypeer = settings().get(
+                ["plugins", "authldap", "ldap_tls_reqcert"])
 
-			verifypeer = ldap.OPT_X_TLS_HARD
-			if ldap_verifypeer == 'NEVER':
-				verifypeer = ldap.OPT_X_TLS_NEVER
-			elif ldap_verifypeer == 'ALLOW':
-				verifypeer = ldap.OPT_X_TLS_ALLOW
-			elif ldap_verifypeer == 'TRY':
-				verifypeer = ldap.OPT_X_TLS_TRY
-			elif ldap_verifypeer == 'DEMAND':
-				verifypeer = ldap.OPT_X_TLS_DEMAND
-			connection.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, verifypeer)
-			try:
-				connection.start_tls_s()
-				self._logger.error("TLS connection established.")
-			except:
-				self._logger.error("Error initializing tls connection")
-				pass
-
+            verifypeer = ldap.OPT_X_TLS_HARD
+            if ldap_verifypeer == 'NEVER':
+                verifypeer = ldap.OPT_X_TLS_NEVER
+            elif ldap_verifypeer == 'ALLOW':
+                verifypeer = ldap.OPT_X_TLS_ALLOW
+            elif ldap_verifypeer == 'TRY':
+                verifypeer = ldap.OPT_X_TLS_TRY
+            elif ldap_verifypeer == 'DEMAND':
+                verifypeer = ldap.OPT_X_TLS_DEMAND
+            connection.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, verifypeer)
+            try:
+                connection.start_tls_s()
+                self._logger.error("TLS connection established.")
+            except:
+                self._logger.error("Error initializing tls connection")
+                pass
 
         masterLogin = settings().get(["plugins", "authldap", "ldap_master_user"])
         masterPassword = settings().get(["plugins", "authldap", "ldap_master_password"])
@@ -179,13 +176,13 @@ class LDAPUserManager(FilebasedUserManager,
 
         return connection
 
-	def escapeLDAP(self, str):
-		reservedStrings = ['+', '=', '\\', '\r',
-						   '\n', '#', ',', '>', '<', '"', ';']
-		for ch in reservedStrings:
-			if ch in str:
-				str = str.replace(ch, '\\' + ch)
-		return str
+    def escapeLDAP(self, str):
+        reservedStrings = ['+', '=', '\\', '\r',
+                           '\n', '#', ',', '>', '<', '"', ';']
+        for ch in reservedStrings:
+            if ch in str:
+                str = str.replace(ch, '\\' + ch)
+        return str
 
     def getRoles(self):
         defaultRoles = []
@@ -194,82 +191,82 @@ class LDAPUserManager(FilebasedUserManager,
             defaultRoles = [x.strip() for x in roles.split(',')]
         return defaultRoles
 
-	# Softwareupdate hook
+    # Softwareupdate hook
 
-	def get_update_information(self):
-		return dict(
-			authldap=dict(
-				displayName="AuthLDAP",
-				displayVersion=self._plugin_version,
+    def get_update_information(self):
+        return dict(
+            authldap=dict(
+                displayName="AuthLDAP",
+                displayVersion=self._plugin_version,
 
-				# version check: github repository
-				type="github_release",
-				user="gillg",
-				repo="OctoPrint-LDAP",
-				current=self._plugin_version,
+                # version check: github repository
+                type="github_release",
+                user="gillg",
+                repo="OctoPrint-LDAP",
+                current=self._plugin_version,
 
-				# update method: pip
-				pip=("https://github.com"
-					 "/gillg/OctoPrint-LDAP/archive/{target_version}.zip")
-			)
-		)
+                # update method: pip
+                pip=("https://github.com"
+                     "/gillg/OctoPrint-LDAP/archive/{target_version}.zip")
+            )
+        )
 
-	# UserManager hook
+    # UserManager hook
 
-	def ldap_user_factory(components, settings, *args, **kwargs):
-		return LDAPUserManager()
+    def ldap_user_factory(components, settings, *args, **kwargs):
+        return LDAPUserManager()
 
-	# SettingsPlugin
+    # SettingsPlugin
 
-	def get_settings_defaults(self):
-		return dict(
-			ldap_uri = None,
-			ldap_search_base = None,
-			ldap_method = None,
-			auto_activate = True,
-			roles = "user",
-            groups = None,
-			ldap_tls_reqcert = None,
-            ldap_master_user = None,
-            ldap_master_password = None
-		)
+    def get_settings_defaults(self):
+        return dict(
+            ldap_uri=None,
+            ldap_search_base=None,
+            ldap_method=None,
+            auto_activate=True,
+            roles="user",
+            groups=None,
+            ldap_tls_reqcert=None,
+            ldap_master_user=None,
+            ldap_master_password=None
+        )
 
-	def on_settings_save(self, data):
-		old_flag = self._settings.get_boolean(["active"])
-		octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
-		new_flag = self._settings.get_boolean(["active"])
-		if new_flag != old_flag:
-			if new_flag:
-				self._logger.warning("Warning! Activating LDAP Plugin")
-				settings().set(["accessControl", "userManager"],'octoprint_authldap.LDAPUserManager')
-				settings().save()
-			else:
-				if settings().get(["accessControl", "userManager"]) == 'octoprint_authldap.LDAPUserManager':
-					self._logger.warning("Deactivating LDAP Plugin")
-					settings().remove(["accessControl", "userManager"])
-					settings().save()
+    def on_settings_save(self, data):
+        old_flag = self._settings.get_boolean(["active"])
+        octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
+        new_flag = self._settings.get_boolean(["active"])
+        if new_flag != old_flag:
+            if new_flag:
+                self._logger.warning("Warning! Activating LDAP Plugin")
+                settings().set(["accessControl", "userManager"], 'octoprint_authldap.LDAPUserManager')
+                settings().save()
+            else:
+                if settings().get(["accessControl", "userManager"]) == 'octoprint_authldap.LDAPUserManager':
+                    self._logger.warning("Deactivating LDAP Plugin")
+                    settings().remove(["accessControl", "userManager"])
+                    settings().save()
 
-	# TemplatePlugin
+    # TemplatePlugin
 
-	def get_template_configs(self):
-		return [
-			dict(type="settings", custom_bindings=False)
-		]
+    def get_template_configs(self):
+        return [
+            dict(type="settings", custom_bindings=False)
+        ]
 
 
 __plugin_name__ = "Auth LDAP"
 
 
 def __plugin_load__():
-	global __plugin_implementation__
-	__plugin_implementation__ = LDAPUserManager()
+    global __plugin_implementation__
+    __plugin_implementation__ = LDAPUserManager()
 
-	global __plugin_hooks__
-	__plugin_hooks__ = {
+    global __plugin_hooks__
+    __plugin_hooks__ = {
         "octoprint.users.factory":
             __plugin_implementation__.ldap_user_factory,
-		"octoprint.plugin.softwareupdate.check_config":
-			__plugin_implementation__.get_update_information,
-	}
+        "octoprint.plugin.softwareupdate.check_config":
+            __plugin_implementation__.get_update_information,
+    }
 
 # @TODO Command clean LDAP users deleted
