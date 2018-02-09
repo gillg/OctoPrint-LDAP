@@ -14,6 +14,11 @@
                    placeholder="CN=Users,DC=example,DC=com">
         </div>
 
+        <label for="plugin_ldap_groups" class="control-label">{{ _('Groups (comma-separated if multiple)') }}</label>
+        <div class="controls">
+            <input id="plugin_ldap_groups" type="text" class="input-block-level" data-bind="value: settings.accessControl.groups"/>
+        </div>
+
         <label class="control-label">{{ _('LDAP Filter') }}</label>
         <div class="controls">
             <input type="text" class="input-block-level" data-bind="value: settings.plugins.authldap.ldap_query"
