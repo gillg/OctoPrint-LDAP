@@ -1,0 +1,84 @@
+<form class="form-horizontal">
+    <h3>LDAP configuration</h3>
+    <div class="control-group">
+        <h4>General</h4>
+        <label class="control-label">{{ _('LDAP URI') }}</label>
+        <div class="controls">
+            <input type="text" class="input-block-level" data-bind="value: settings.plugins.authldap.ldap_uri"
+                   placeholder="ldaps://ldap.server.com">
+        </div>
+
+        <label class="control-label">{{ _('Search base pattern') }}</label>
+        <div class="controls">
+            <input type="text" class="input-block-level" data-bind="value: settings.plugins.authldap.ldap_search_base"
+                   placeholder="CN=Users,DC=example,DC=com">
+        </div>
+
+        <label for="plugin_ldap_groups" class="control-label">{{ _('Groups (comma-separated if multiple)') }}</label>
+        <div class="controls">
+            <input id="plugin_ldap_groups" type="text" class="input-block-level" data-bind="value: settings.accessControl.groups"/>
+        </div>
+
+        <label class="control-label">{{ _('LDAP Filter') }}</label>
+        <div class="controls">
+            <input type="text" class="input-block-level" data-bind="value: settings.plugins.authldap.ldap_query"
+                   placeholder="(&(objectclass=user)(memberof=<GROUPNAME>)(samaccountname={uid}))">
+        </div>
+
+        <label class="control-label">{{ _('Default Roles:') }}</label>
+        <div class="controls">
+            <input type="text" class="input-block-level" data-bind="value: settings.plugins.authldap.roles"
+                   placeholder="Comma separated list of roles: user,admin">
+        </div>
+        <div class="controls">
+            <label class="checkbox">
+                <input type="checkbox" data-bind="checked: settings.plugins.authldap.auto_activate">Automatically activate users?
+            </label>
+        </div>
+    </div>
+    <div class="control-group">
+        <h4>Authentication</h4>
+        <label class="control-label">{{ _('Binding User DN') }}</label>
+        <div class="controls">
+            <input type="text" class="input-block-level" data-bind="value: settings.plugins.authldap.ldap_bind_user"
+                   placeholder="User DN">
+        </div>
+        <label class="control-label">{{ _('Password') }}</label>
+        <div class="controls">
+            <input type="password" class="input-block-level" data-bind="value: settings.plugins.authldap.ldap_bind_password">
+        </div>
+    </div>
+    <div class="control-group">
+        <h4>TLS</h4>
+        <label class="control-label">{{ _('Method:') }}</label>
+        <div class="controls">
+            <select data-bind="value: settings.plugins.authldap.ldap_method">
+                <option value="BASIC">Basic</option>
+                <option value="SECURE">TLS</option>
+            </select>
+        </div>
+        <label class="control-label">{{ _('TLS certification check') }}</label>
+        <div class="controls">
+            <select data-bind="value: settings.plugins.authldap.ldap_tls_reqcert">
+                <option value="HARD">Hard</option>
+                <option value="DEMAND">Demand</option>
+                <option value="TRY">Try</option>
+                <option value="ALLOW">Allow</option>
+                <option value="NEVER">Never</option>
+            </select>
+        </div>
+    </div>
+    <div class="control-group">
+        <h4>Activation</h4>
+            <p>{% trans %}
+            After activation a restart is needed.<br>
+            In case there is an issue while initialization, this plugin will disable itself and kill the server.
+            You can safely restart afterwards.
+        {% endtrans %}</p>
+        <div class="controls">
+            <label class="checkbox">
+                <input type="checkbox" data-bind="checked: settings.plugins.authldap.active">Activate LDAP Authentication
+            </label>
+        </div>
+    </div>
+</form>
