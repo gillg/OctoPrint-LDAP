@@ -71,8 +71,8 @@ class LDAPUserManager(FilebasedUserManager,
             return local_user
 
     def findLDAPUser(self, userid):
-        ldap_search_base = settings().get(["accessControl", "ldap_search_base"])
-        groups = settings().get(["accessControl", "groups"])
+        ldap_search_base = settings().get(["plugins", "authldap", "ldap_search_base"])
+        groups = settings().get(["plugins", "authldap", "groups"])
         userid = self.escapeLDAP(userid)
 
         if ldap_search_base is None:
@@ -138,7 +138,7 @@ class LDAPUserManager(FilebasedUserManager,
         ldap_server = settings().get(["plugins", "authldap", "ldap_uri"])
         self._logger.debug("LDAP URL %s" % ldap_server)
         if not ldap_server:
-            self._logger.debug("UserManager: %s" % settings().get(["accessControl", "userManager"]))
+            self._logger.debug("UserManager: %s" % settings().get(["plugins", "authldap", "userManager"]))
             raise Exception("LDAP conf error, server is missing")
 
         connection = ldap.initialize(ldap_server)
@@ -168,11 +168,10 @@ class LDAPUserManager(FilebasedUserManager,
                 self._logger.error("Error initializing tls connection")
                 pass
 
-        masterLogin = settings().get(["plugins", "authldap", "ldap_master_user"])
-        masterPassword = settings().get(["plugins", "authldap", "ldap_master_password"])
-        if (masterLogin and masterPassword):
-            connection.simple_bind_s(masterLogin, masterPassword)
-            connection.unbind_s()
+        bindUser = settings().get(["plugins", "authldap", "ldap_bind_user"])
+        bindPassword = settings().get(["plugins", "authldap", "ldap_bind_password"])
+        if (bindUser and bindPassword):
+            connection.simple_bind_s(bindUser, bindPassword)
 
         return connection
 
@@ -222,13 +221,15 @@ class LDAPUserManager(FilebasedUserManager,
         return dict(
             ldap_uri=None,
             ldap_search_base=None,
-            ldap_method=None,
-            auto_activate=True,
-            roles="user",
             groups=None,
+            ldap_search_query=None,
+            roles="user",
+            auto_activate=True,
+            ldap_bind_user=None,
+            ldap_bind_password=None,
+            ldap_method=None,
             ldap_tls_reqcert=None,
-            ldap_master_user=None,
-            ldap_master_password=None
+            active=False
         )
 
     def on_settings_save(self, data):
@@ -238,12 +239,12 @@ class LDAPUserManager(FilebasedUserManager,
         if new_flag != old_flag:
             if new_flag:
                 self._logger.warning("Warning! Activating LDAP Plugin")
-                settings().set(["accessControl", "userManager"], 'octoprint_authldap.LDAPUserManager')
+                settings().set(["plugins", "authldap", "userManager"], 'octoprint_authldap.LDAPUserManager')
                 settings().save()
             else:
-                if settings().get(["accessControl", "userManager"]) == 'octoprint_authldap.LDAPUserManager':
+                if settings().get(["plugins", "authldap", "userManager"]) == 'octoprint_authldap.LDAPUserManager':
                     self._logger.warning("Deactivating LDAP Plugin")
-                    settings().remove(["accessControl", "userManager"])
+                    settings().remove(["plugins", "authldap", "userManager"])
                     settings().save()
 
     # TemplatePlugin
