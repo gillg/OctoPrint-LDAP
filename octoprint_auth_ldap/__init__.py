@@ -66,19 +66,27 @@ class LDAPUserManager(FilebasedUserManager,
             return local_user
 
     def findLDAPUser(self, userid):
+        ldap_service_binddn = settings().get(["accessControl", "ldap_service_binddn"])
+        ldap_service_passwd = settings().get(["accessControl", "ldap_service_passwd"])
         ldap_search_base = settings().get(["accessControl", "ldap_search_base"])
+        ldap_query_fmt = settings().get(["accessControl", "ldap_query_fmt"])
+        if ldap_query_fmt is None:
+                ldap_query_fmt = "(uid=%s)"
         groups = settings().get(["accessControl", "groups"])
         userid = self.escapeLDAP(userid)
 
         if ldap_search_base is None:
-            self._logger.error("LDAP conf error")
+            self._logger.error("LDAP conf error: ldap_search_base is not set")
             return None
 
         try:
             connection = self.getLDAPClient()
+            if ldap_service_binddn != None:
+                connection.bind_s(ldap_service_binddn, ldap_service_passwd)
 
-            #verify user)
-            result = connection.search_s(ldap_search_base, ldap.SCOPE_SUBTREE, "uid=" + userid)
+            # verify user
+            user_query = ldap_query_fmt % (userid)
+            result = connection.search_s(ldap_search_base, ldap.SCOPE_SUBTREE, user_query)
             if result is None or len(result) == 0:
                 return None
             self._logger.error("LDAP-AUTH: User found!")
@@ -136,7 +144,7 @@ class LDAPUserManager(FilebasedUserManager,
         ldap_server = settings().get(["accessControl", "ldap_uri"])
         ldap_verifypeer = settings().get(["accessControl", "ldap_tls_reqcert"])
         if ldap_server is None:
-            self._logger.error("LDAP conf error")
+            self._logger.error("LDAP conf error: ldap_uri is not set")
             Exception("LDAP conf error, server is missing")
 
         connection = ldap.initialize(ldap_server)
@@ -184,6 +192,7 @@ class LDAPUserManager(FilebasedUserManager,
                 ldap_uri=None,
                 ldap_tls_reqcert='demand',
                 ldap_search_base=None,
+                ldap_query_fmt='(uid=%s)',
                 groups=None
             )
         )

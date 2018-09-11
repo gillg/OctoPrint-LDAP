@@ -20,7 +20,22 @@
     <div class="controls">
         <input id="plugin_ldap_search_base" type="text" class="input-block-level" data-bind="value: settings.accessControl.ldap_search_base"/>
     </div>
-    
+
+   <label for="plugin_ldap_service_binddn" class="control-label">{{ _('Search bind DN') }}</label>
+    <div class="controls">
+        <input id="plugin_ldap_service_binddn" type="text" class="input-block-level" data-bind="value: settings.accessControl.ldap_service_binddn"/>
+    </div>
+
+    <label for="plugin_ldap_service_passwd" class="control-label">{{ _('Search bind password') }}</label>
+    <div class="controls">
+        <input id="plugin_ldap_service_passwd" type="password" class="input-block-level" data-bind="value: settings.accessControl.ldap_service_passwd"/>
+    </div>
+
+    <label for="plugin_ldap_query_fmt" class="control-label">{{ _('Search LDAP filter') }}</label>
+    <div class="controls">
+        <input id="plugin_ldap_query_fmt" type="text" class="input-block-level" data-bind="value: settings.accessControl.ldap_query_fmt"/>
+    </div>
+
     <label for="plugin_ldap_groups" class="control-label">{{ _('Groups (comma-separated if multiple)') }}</label>
     <div class="controls">
         <input id="plugin_ldap_groups" type="text" class="input-block-level" data-bind="value: settings.accessControl.groups"/>
