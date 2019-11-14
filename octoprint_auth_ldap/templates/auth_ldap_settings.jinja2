@@ -1,0 +1,44 @@
+<h3>{{ _('Auth LDAP Settings') }}</h3>
+
+<form class="form-horizontal">
+    <div class="control-group">
+        <label for="uri" class="control-label">{{ _('LDAP URI') }}</label>
+        <div class="controls">
+            <input id="uri" type="text" class="input-block-level" data-bind="value: settings.plugins.auth_ldap.uri"
+                   placeholder="ldaps://ldap.example.com">
+        </div>
+
+        <label for="request_tls_cert" class="control-label">{{ _('Request TLS Certificate') }}</label>
+        <div class="controls">
+            <input id="request_tls_cert" type="checkbox" class="input-block-level"
+                   data-bind="checked: settings.plugins.auth_ldap.request_tls_cert">
+        </div>
+
+        <label for="auth_user" class="control-label">{{ _('Authenticated bind user') }}</label>
+        <div class="controls">
+            <input id="auth_user" type="text" class="input-block-level"
+                   data-bind="value: settings.plugins.auth_ldap.auth_user"
+                   placeholder="EXAMPLE\admin or admin@example.com or cn=admin,dc=example,dc=com">
+        </div>
+
+        <label for="auth_password" class="control-label">{{ _('Authenticated bind password') }}</label>
+        <div class="controls">
+            <input id="auth_password" type="password" class="input-block-level"
+                   data-bind="value: settings.plugins.auth_ldap.auth_password">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <label for="search_base" class="control-label">{{ _('Search base') }}</label>
+        <div class="controls">
+            <input id="search_base" type="text" class="input-block-level"
+                   data-bind="value: settings.plugins.auth_ldap.search_base" placeholder="DC=example,DC=com">
+        </div>
+
+        <label for="groups" class="control-label">{{ _('Groups') }}</label>
+        <div class="controls">
+            <input id="groups" type="text" class="input-block-level"
+                   data-bind="value: settings.plugins.auth_ldap.groups" placeholder="Lab Users, Lab Staff, Students">
+        </div>
+    </div>
+</form>

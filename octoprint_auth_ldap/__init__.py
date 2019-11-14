@@ -8,156 +8,127 @@ import ldap
 import uuid
 
 
+# ForumSys has a read-only test LDAP server that is web-facing set up that is super helpful for testing! -- SDB 2019-10-15
+# https://www.forumsys.com/tutorials/integration-how-to/ldap/online-ldap-test-server/
+
+class LDAPUser(User):
+    def __init__(self, username, passwordHash=None, active=True, roles=None, dn=None, apikey=None, settings=None):
+        User.__init__(self, username, passwordHash, active, roles, apikey, settings)
+        self._dn = dn
+
+    def distinguished_name(self):
+        return self._dn
+
+
 class LDAPUserManager(FilebasedUserManager,
                       octoprint.plugin.SettingsPlugin,
                       octoprint.plugin.TemplatePlugin):
 
-    #Login phase :
-    #  - findUser called, if it return a user
-    #    - chaeckPassword called, if it return True
-    #      - login_user called with User returned by previous findUser
-
-    def checkPassword(self, username, password):
-        try:
-            connection = self.getLDAPClient()
-
-            username = self.escapeLDAP(username)
-            dn = self.findLDAPUser(username)
-            if dn is None:
-                return False
-            connection.bind_s(dn, password)
-            connection.unbind_s()
-
-            user = FilebasedUserManager.findUser(self, username)
-            if not user:
-                self._logger.debug("Add new user")
-                self.addUser(username, str(uuid.uuid4()), True)
-            return True
-
-        except ldap.INVALID_CREDENTIALS:
-            self._logger.error("LDAP : Your username or password is incorrect.")
-            return FilebasedUserManager.checkPassword(self, username, password)
-        except ldap.LDAPError, e:
-            if type(e.message) == dict:
-                for (k, v) in e.message.iteritems():
-                    self._logger.error("%s: %sn" % (k, v))
-            else:
-                self._logger.error(e.message)
-                return False
-
-    def changeUserPassword(self, username, password):
-        #Changing password of LDAP users is not allowed
-        if FilebasedUserManager.findUser(self, username) is not None:
-            return FilebasedUserManager.changeUserPassword(self, username, password)
+    ###################################################################
+    # UserManager overrides
 
     def findUser(self, userid=None, apikey=None, session=None):
-        local_user = FilebasedUserManager.findUser(self, userid, apikey, session)
-        #If user not exists in local database, search it on LDAP
-        if userid and not local_user:
-            if(self.findLDAPUser(userid)):
-                #Return a fake user instance
-                return User(userid, str(uuid.uuid4()), True, ["user"])
+        self._logger.debug("Search for userid=%s, apiKey=%s, session=%s" % (userid, apikey, session))
+        user = FilebasedUserManager.findUser(self, userid=userid, apikey=apikey, session=session)
 
-            else:
-                return None
+        if user is None and userid is not None:
+            self._logger.debug("User %s not found locally, treating as LDAP" % userid)
+            search_filter = self.get_my_setting("search_filter").replace(self.USER_PLACEHOLDER, userid)
 
-        else :
-            self._logger.debug("Local user found")
-            return local_user
+            dn = self.ldap_search(search_filter)
 
-    def findLDAPUser(self, userid):
-        ldap_search_base = settings().get(["accessControl", "ldap_search_base"])
-        groups = settings().get(["accessControl", "groups"])
-        userid = self.escapeLDAP(userid)
+            # TODO: map LDAP groups to roles?
+            # TODO: make default role configurable
+            actual_groups = ["users"]
+            if dn is not None:
+                self._logger.debug("%s found as dn=%s" % (userid, dn))
+                groups = self.get_my_setting("groups")
+                if groups is not None:
+                    for group in str(groups).split(","):
+                        # TODO make search filter configurable (could also be cn=%s)
+                        result = self.ldap_search("(&(ou=%s)(uniqueMember=%s))" % (group.strip(), dn))
+                        if result is not None:
+                            actual_groups.append(group)
+                    if actual_groups is ["users"]:
+                        return None
+                # TODO: mirror LDAP users locally (will this help with logging?)
+                self._logger.debug("Creating new LDAPUser %s" % userid)
+                user = LDAPUser(username=userid, dn=dn, roles=actual_groups, active=True)
 
-        if ldap_search_base is None:
-            self._logger.error("LDAP conf error")
+        return user
+
+    def checkPassword(self, username, password):
+        user = self.findUser(userid=username)
+        if isinstance(user, LDAPUser):
+            self._logger.debug("Checking %s password via LDAP" % username)
+            client = self.get_ldap_client(user.distinguished_name(), password)
+            return client is not None
+        else:
+            self._logger.debug("Checking %s password via file" % username)
+            return FilebasedUserManager.checkPassword(self, username, password)
+
+    # FIXME this is a bit of a hack...
+    #       I _think_ there's a collision between the UserManager and SettingsPlugin on self._settings
+    def get_my_setting(self, key):
+        value = settings().get(["plugins", "auth_ldap", key])
+        if value is None:
+            value = self.get_settings_defaults()[key]
+            self.set_my_setting(key, value)
+        return value
+
+    def set_my_setting(self, key, value):
+        return settings().set(["plugins", "auth_ldap", key], value)
+
+    ###################################################################
+    # LDAP interactions
+
+    def get_ldap_client(self, user=None, password=None):
+        uri = self.get_my_setting("uri")
+        if uri is None:
+            self._logger.debug("No LDAP URI")
             return None
+        if user is None:
+            user = self.get_my_setting("auth_user")
+            password = self.get_my_setting("auth_password")
+        try:
+            self._logger.debug("Initializing LDAP connection to %s" % uri)
+            client = ldap.initialize(uri)
+            if user is not None:
+                self._logger.debug("Binding to LDAP as %s" % user)
+                client.bind_s(user, password)
+            return client
+        except ldap.INVALID_CREDENTIALS:
+            return None
+
+    def ldap_search(self, filter, base=None, scope=ldap.SCOPE_SUBTREE):
+        if base is None:
+            base = self.get_my_setting("search_base")
 
         try:
-            connection = self.getLDAPClient()
-
-            #verify user)
-            result = connection.search_s(ldap_search_base, ldap.SCOPE_SUBTREE, "uid=" + userid)
-            if result is None or len(result) == 0:
-                return None
-            self._logger.error("LDAP-AUTH: User found!")
-
-            #check group(s)
-            if groups is not None:
-                self._logger.error("LDAP-AUTH: Checking Groups...")
-                group_filter = ""
-                if "," in groups:
-                    group_list = groups.split(",")
-                    group_filter = "(|"
-                    for g in group_list:
-                        group_filter = group_filter + "(cn=%s)" % g
-                    group_filter = group_filter + ")"
-                else:
-                    group_filter = "(cn=%s)" % groups
-
-                query = "(&(objectClass=posixGroup)%s(memberUid=%s))" % (group_filter, userid)
-                self._logger.error("LDAP-AUTH QUERY:" + query)
-                group_result = connection.search_s(ldap_search_base, ldap.SCOPE_SUBTREE, query)
-
-                if group_result is None or len(group_result) == 0:
-                    print("LDAP-AUTH: Group not found")
-                    return None
-
-                self._logger.error("LDAP-AUTH: Group matched!")
-
-            #disconnect
-            connection.unbind_s()
-
-            #Get the DN of first user found
-            dn, data = result[0]
-            return dn
-
-        except ldap.NO_SUCH_OBJECT:
-            self._logger.error("LDAP-AUTH: NO_SUCH_OBJECT")
-            return None
-
-        except ldap.LDAPError, e:
-            if type(e.message) == dict:
-                for (k, v) in e.message.iteritems():
-                    self._logger.error("%s: %sn" % (k, v))
+            client = self.get_ldap_client()
+            if client is not None:
+                self._logger.debug("Searching LDAP, base: %s and filter: %s" % (base, filter))
+                result = client.search_s(base, scope, filter)
+                client.unbind_s()
+                if result:
+                    self._logger.debug(result)
+                    dn, data = result[0]
+                    return dn
+        except ldap.LDAPError as e:
+            if isinstance(e.message, dict):
+                for (k, v) in e.message:
+                    self._logger.debug("%s: %s" % (k, v))
             else:
-                self._logger.error(e.message)
-                return None
+                self._logger.debug(e.message)
 
-    def escapeLDAP(self, str):
-        reservedStrings = ['+','=','\\','\r','\n','#',',','>','<','"',';']
-        for ch in reservedStrings:
-            if ch in str:
-                str = str.replace(ch, '\\' + ch)
-        return str
-
-    def getLDAPClient(self):
-        ldap_server = settings().get(["accessControl", "ldap_uri"])
-        ldap_verifypeer = settings().get(["accessControl", "ldap_tls_reqcert"])
-        if ldap_server is None:
-            self._logger.error("LDAP conf error")
-            Exception("LDAP conf error, server is missing")
-
-        connection = ldap.initialize(ldap_server)
-        if (ldap_server.startswith('ldaps://')):
-            verifypeer = ldap.OPT_X_TLS_NEVER
-            if ldap_verifypeer == 'demand':
-                verifypeer = ldap.OPT_X_TLS_DEMAND
-            connection.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, verifypeer)
-            try:
-                connection.start_tls_s()
-            except:
-                pass
-
-        return connection
+        return None
 
     # Softwareupdate hook
 
     def get_update_information(self):
         return dict(
-            filamentmanager=dict(
-                displayName="Auth LDAP",
+            auth_ldap=dict(
+                displayName=self._plugin_name,
                 displayVersion=self._plugin_version,
 
                 # version check: github repository
@@ -173,30 +144,36 @@ class LDAPUserManager(FilebasedUserManager,
 
     # UserManager hook
 
-    def ldap_user_factory(components, settings, *args, **kwargs):
+    def ldap_user_factory(self, components, settings):
         return LDAPUserManager()
 
     # SettingsPlugin
 
+    USER_PLACEHOLDER = "{user}"
+    GROUP_PLACEHOLDER = "{group}"
+    GROUP_MEMBER_PLACEHOLDER = "{dn}"
+
     def get_settings_defaults(self):
         return dict(
-            accessControl=dict(
-                ldap_uri=None,
-                ldap_tls_reqcert='demand',
-                ldap_search_base=None,
-                groups=None
-            )
+            uri=None,
+            request_tls_cert=None,
+            auth_user=None,
+            auth_password=None,
+            search_base=None,
+            search_filter="uid=%s" % self.USER_PLACEHOLDER,
+            groups=None,
+            group_filter="ou=%s" % self.GROUP_PLACEHOLDER,
+            group_member_filter="uniqueMember=%s" % self.GROUP_MEMBER_PLACEHOLDER
         )
 
     # TemplatePlugin
 
     def get_template_configs(self):
-        return [
-            dict(type="settings", template="settings.jinja2")
-        ]
+        return [dict(type="settings", custom_bindings=False)]
 
 
 __plugin_name__ = "Auth LDAP"
+
 
 def __plugin_load__():
     global __plugin_implementation__
@@ -205,8 +182,7 @@ def __plugin_load__():
     global __plugin_hooks__
     __plugin_hooks__ = {
         "octoprint.users.factory": __plugin_implementation__.ldap_user_factory,
-        "octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information,
+        "octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information
     }
 
-
-#@TODO Command clean LDAP users deleted
+# @TODO Command clean LDAP users deleted
