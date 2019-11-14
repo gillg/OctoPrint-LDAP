@@ -1,6 +1,8 @@
 # coding=utf-8
 from __future__ import absolute_import
 
+import json
+
 import octoprint.plugin
 from octoprint.users import FilebasedUserManager, User
 from octoprint.settings import settings
@@ -35,27 +37,33 @@ class LDAPUserManager(FilebasedUserManager,
 
         if user is None and userid is not None:
             self._logger.debug("User %s not found locally, treating as LDAP" % userid)
-            search_filter = self.get_my_setting("search_filter").replace(self.USER_PLACEHOLDER, userid)
+            search_filter = self.get_plugin_setting("search_filter").replace(self.USER_PLACEHOLDER, userid)
 
-            dn = self.ldap_search(search_filter)
+            ldap_user = self.ldap_search(search_filter)
 
             # TODO: map LDAP groups to roles?
             # TODO: make default role configurable
             actual_groups = ["users"]
-            if dn is not None:
-                self._logger.debug("%s found as dn=%s" % (userid, dn))
-                groups = self.get_my_setting("groups")
+            if ldap_user is not None:
+                self._logger.debug("%s found as dn=%s" % (userid, ldap_user["dn"]))
+                groups = self.get_plugin_setting("groups")
+                group_filter = self.get_plugin_setting("group_filter").replace(self.GROUP_PLACEHOLDER, "%s")
+                group_member_filter = self.get_plugin_setting("group_member_filter").replace(
+                    self.GROUP_MEMBER_PLACEHOLDER, "%s")
                 if groups is not None:
                     for group in str(groups).split(","):
-                        # TODO make search filter configurable (could also be cn=%s)
-                        result = self.ldap_search("(&(ou=%s)(uniqueMember=%s))" % (group.strip(), dn))
+                        result = self.ldap_search("(&" +
+                                                  group_filter % group.strip() +
+                                                  group_member_filter % ldap_user["dn"]
+                                                  + ")")
                         if result is not None:
                             actual_groups.append(group)
                     if actual_groups is ["users"]:
                         return None
                 # TODO: mirror LDAP users locally (will this help with logging?)
                 self._logger.debug("Creating new LDAPUser %s" % userid)
-                user = LDAPUser(username=userid, dn=dn, roles=actual_groups, active=True)
+                # TODO make username configurable or make dn configurable (e.g. could be userPrincipalName?)
+                user = LDAPUser(username=userid, dn=ldap_user["dn"], roles=actual_groups, active=True)
 
         return user
 
@@ -71,41 +79,49 @@ class LDAPUserManager(FilebasedUserManager,
 
     # FIXME this is a bit of a hack...
     #       I _think_ there's a collision between the UserManager and SettingsPlugin on self._settings
-    def get_my_setting(self, key):
+    def get_plugin_setting(self, key):
         value = settings().get(["plugins", "auth_ldap", key])
         if value is None:
             value = self.get_settings_defaults()[key]
-            self.set_my_setting(key, value)
+            self.set_plugin_setting(key, value)
         return value
 
-    def set_my_setting(self, key, value):
+    def set_plugin_setting(self, key, value):
         return settings().set(["plugins", "auth_ldap", key], value)
 
     ###################################################################
     # LDAP interactions
 
     def get_ldap_client(self, user=None, password=None):
-        uri = self.get_my_setting("uri")
+        uri = self.get_plugin_setting("uri")
         if uri is None:
             self._logger.debug("No LDAP URI")
             return None
+
         if user is None:
-            user = self.get_my_setting("auth_user")
-            password = self.get_my_setting("auth_password")
+            user = self.get_plugin_setting("auth_user")
+            password = self.get_plugin_setting("auth_password")
+
         try:
             self._logger.debug("Initializing LDAP connection to %s" % uri)
             client = ldap.initialize(uri)
+            if self.get_plugin_setting("request_tls_cert"):
+                client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_DEMAND)
+            else:
+                client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
             if user is not None:
                 self._logger.debug("Binding to LDAP as %s" % user)
                 client.bind_s(user, password)
             return client
         except ldap.INVALID_CREDENTIALS:
-            return None
+            self._logger.error("Invalid credentials to bind to LDAP as %s" % user)
+        except ldap.LDAPError as e:
+            self._logger.error(json.dumps(e.message))
+        return None
 
     def ldap_search(self, filter, base=None, scope=ldap.SCOPE_SUBTREE):
         if base is None:
-            base = self.get_my_setting("search_base")
-
+            base = self.get_plugin_setting("search_base")
         try:
             client = self.get_ldap_client()
             if client is not None:
@@ -113,16 +129,13 @@ class LDAPUserManager(FilebasedUserManager,
                 result = client.search_s(base, scope, filter)
                 client.unbind_s()
                 if result:
-                    self._logger.debug(result)
                     dn, data = result[0]
-                    return dn
+                    self._logger.debug("dn: %s" % dn)
+                    for key, value in data.iteritems():
+                        self._logger.debug("%s: %s" % (key, value))
+                    return dict(dn=dn, data=data)
         except ldap.LDAPError as e:
-            if isinstance(e.message, dict):
-                for (k, v) in e.message:
-                    self._logger.debug("%s: %s" % (k, v))
-            else:
-                self._logger.debug(e.message)
-
+            self._logger.error(json.dumps(e.message))
         return None
 
     # Softwareupdate hook
@@ -171,6 +184,7 @@ class LDAPUserManager(FilebasedUserManager,
     # TemplatePlugin
 
     def get_template_configs(self):
+        # TODO it would be nice to pass in defaults to use as placeholders, but custom_bindings eludes me
         return [dict(type="settings", custom_bindings=False)]
 
 
