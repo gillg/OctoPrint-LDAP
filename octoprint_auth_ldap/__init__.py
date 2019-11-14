@@ -8,6 +8,8 @@ import ldap
 import uuid
 
 
+# FIXME Do LDAP strings need to be escaped? (Presumably yes)
+
 # ForumSys has a read-only test LDAP server that is web-facing set up that is super helpful for testing! -- SDB 2019-10-15
 # https://www.forumsys.com/tutorials/integration-how-to/ldap/online-ldap-test-server/
 
@@ -184,5 +186,3 @@ def __plugin_load__():
         "octoprint.users.factory": __plugin_implementation__.ldap_user_factory,
         "octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information
     }
-
-# @TODO Command clean LDAP users deleted
