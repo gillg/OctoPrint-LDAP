@@ -5,9 +5,7 @@ import json
 
 import octoprint.plugin
 from octoprint.users import FilebasedUserManager, User
-from octoprint.settings import settings
 import ldap
-import uuid
 
 
 # FIXME Do LDAP strings need to be escaped? (Presumably yes)
@@ -15,13 +13,21 @@ import uuid
 # ForumSys has a read-only test LDAP server that is web-facing set up that is super helpful for testing! -- SDB 2019-10-15
 # https://www.forumsys.com/tutorials/integration-how-to/ldap/online-ldap-test-server/
 
+
 class LDAPUser(User):
-    def __init__(self, username, passwordHash=None, active=True, roles=None, dn=None, apikey=None, settings=None):
+    def __init__(self, username, passwordHash=None, active=True, roles=None, dn=None, ldap_groups=None, apikey=None,
+                 settings=None):
+        if roles is None:
+            roles = ["user"]
         User.__init__(self, username, passwordHash, active, roles, apikey, settings)
         self._dn = dn
+        self._groups = ldap_groups
 
     def distinguished_name(self):
         return self._dn
+
+    def groups(self):
+        return self._groups
 
 
 class LDAPUserManager(FilebasedUserManager,
@@ -43,7 +49,7 @@ class LDAPUserManager(FilebasedUserManager,
 
             # TODO: map LDAP groups to roles?
             # TODO: make default role configurable
-            actual_groups = ["users"]
+            actual_groups = []
             if ldap_user is not None:
                 self._logger.debug("%s found as dn=%s" % (userid, ldap_user["dn"]))
                 groups = self.get_plugin_setting("groups")
@@ -62,8 +68,8 @@ class LDAPUserManager(FilebasedUserManager,
                         return None
                 # TODO: mirror LDAP users locally (will this help with logging?)
                 self._logger.debug("Creating new LDAPUser %s" % userid)
-                # TODO make username configurable or make dn configurable (e.g. could be userPrincipalName?)
-                user = LDAPUser(username=userid, dn=ldap_user["dn"], roles=actual_groups, active=True)
+                # TODO: make username configurable or make dn configurable (e.g. could be userPrincipalName?)
+                user = LDAPUser(username=userid, dn=ldap_user["dn"], ldap_groups=actual_groups, active=True)
 
         return user
 
@@ -77,17 +83,13 @@ class LDAPUserManager(FilebasedUserManager,
             self._logger.debug("Checking %s password via file" % username)
             return FilebasedUserManager.checkPassword(self, username, password)
 
-    # FIXME this is a bit of a hack...
-    #       I _think_ there's a collision between the UserManager and SettingsPlugin on self._settings
+    # Get a setting, setting to default value if not already set
     def get_plugin_setting(self, key):
-        value = settings().get(["plugins", "auth_ldap", key])
+        value = self._settings.get(["plugins", "auth_ldap", key])
         if value is None:
             value = self.get_settings_defaults()[key]
-            self.set_plugin_setting(key, value)
+            self._settings.set(["plugins", "auth_ldap", key], value)
         return value
-
-    def set_plugin_setting(self, key, value):
-        return settings().set(["plugins", "auth_ldap", key], value)
 
     ###################################################################
     # LDAP interactions
@@ -130,9 +132,10 @@ class LDAPUserManager(FilebasedUserManager,
                 client.unbind_s()
                 if result:
                     dn, data = result[0]
-                    self._logger.debug("dn: %s" % dn)
-                    for key, value in data.iteritems():
-                        self._logger.debug("%s: %s" % (key, value))
+                    # Dump LDAP search query results to logger
+                    # self._logger.debug("dn: %s" % dn)
+                    # for key, value in data.iteritems():
+                    #     self._logger.debug("%s: %s" % (key, value))
                     return dict(dn=dn, data=data)
         except ldap.LDAPError as e:
             self._logger.error(json.dumps(e.message))
@@ -179,6 +182,23 @@ class LDAPUserManager(FilebasedUserManager,
             groups=None,
             group_filter="ou=%s" % self.GROUP_PLACEHOLDER,
             group_member_filter="uniqueMember=%s" % self.GROUP_MEMBER_PLACEHOLDER
+        )
+
+    def get_settings_restricted_paths(self):
+        self._logger.debug("Registering restricted paths")
+        return dict(
+            admin=[
+                ["uri"],
+                ["request_tls_cert"],
+                ["auth_user"],
+                ["search_base"],
+                ["search_filter"],
+                ["groups"],
+                ["group_filter"],
+                ["group_member_filter"]
+            ],
+            user=[],
+            never=[["auth_password"]]
         )
 
     # TemplatePlugin

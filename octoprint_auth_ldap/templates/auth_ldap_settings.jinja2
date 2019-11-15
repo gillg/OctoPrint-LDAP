@@ -24,6 +24,7 @@
 
         <label for="auth_password" class="control-label">{{ _('Authenticated bind password') }}</label>
         <div class="controls">
+            <!-- Due to API path restrictions, the password will not be displayed, but will be saved correctly -->
             <input id="auth_password" type="password" class="input-block-level"
                    data-bind="value: settings.plugins.auth_ldap.auth_password">
         </div>
