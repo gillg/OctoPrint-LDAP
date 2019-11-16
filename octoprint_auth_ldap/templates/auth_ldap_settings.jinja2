@@ -41,7 +41,25 @@
         <label for="search_filter" class="control-label">{{ _('Search filter') }}</label>
         <div class="controls">
             <input id="search_filter" type="text" class="input-block-level" data-bind="value: settings.plugins.auth_ldap.search_filter" placeholder="uid={user}">
-            <small>Use <code>{user}</code> as placeholder for login user ID</small>
+            <small>Use <code>%s</code> as placeholder for login user ID</small>
+        </div>
+
+        <label for="local_cache" class="control-label">{{ _('Local cache') }}</label>
+        <div class="controls">
+            <input id="local_cache" type="checkbox" class="input-block-level"
+                   data-bind="checked: settings.plugins.auth_ldap.local_cache">
+        </div>
+
+        <label for="default_user" class="control-label">{{ _('Default user role') }}</label>
+        <div class="controls">
+            <input id="default_user" type="checkbox" class="input-block-level"
+                   data-bind="checked: settings.plugins.auth_ldap.default_role_user">
+        </div>
+
+        <label for="default_admin" class="control-label">{{ _('Default admin role') }}</label>
+        <div class="controls">
+            <input id="default_admin" type="checkbox" class="input-block-level"
+                   data-bind="checked: settings.plugins.auth_ldap.default_role_admin">
         </div>
     </div>
 
@@ -56,13 +74,13 @@
         <label for="group_filter" class="control-label">{{ _('Group Filter') }}</label>
         <div class="controls">
             <input id="group_filter" type="text" class="input-block-level" data-bind="value: settings.plugins.auth_ldap.group_filter" placeholder="ou={group}">
-            <small>Use <code>{group}</code> as placeholder for group name</small>
+            <small>Use <code>%s</code> as placeholder for group name</small>
         </div>
 
         <label for="group_member_filter" class="control-label">{{ _('Group Member Filter') }}</label>
         <div class="controls">
             <input id="group_member_filter" type="text" class="input-block-level" data-bind="value: settings.plugins.auth_ldap.group_member_filter" placeholder="uniqueMember={dn}">
-            <small>Use <code>{dn}</code> as placeholder for user's distinguished name</small>
+            <small>Use <code>%s</code> as placeholder for user's distinguished name</small>
         </div>
     </div>
 </form>
