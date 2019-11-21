@@ -143,3 +143,21 @@ plugins:
 ```
 
 This configuration would generate a search filter that would test against each provided group name in turn, using the user's LDAP-provided DN: `"(&(cn=%s)(uniqueMember=%s))" % (group_name, dn)`, which would end up looking like `(&(cn=Lab Users)(uniqueMember=uid=example_user,dc=example.dc=com))`
+
+##### Search Term Transform
+
+OctoPrint searches for users in a case-sensitve manner by default. However, it becomes a management issue (if local caching is turned on) to have cached each case-sensitive search for the same user (e.g. `testuser`, `TESTUSER`, `TestUser`, `tEsTuSeR`, etc.). In order to manage this issue, the `search_term_transform` setting allows you to specify a string transformation (e.g. `upper` or `lower`) to be applied to search terms if they are not found already cached.
+
+```YAML
+plugins:
+  auth_ldap:
+    search_term_transform: lower
+```
+
+The result of this will be that the user ID entered in the login dialog will be transformed using this call:
+
+```python
+userid = getattr(str, "lower")(str(userid))
+```
+
+Note that this does not provide a capability for more nuanced transformations at this pouint.

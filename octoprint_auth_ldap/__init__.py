@@ -5,7 +5,7 @@ import json
 import ldap
 from ldap.filter import filter_format
 import octoprint.plugin
-from octoprint.users import FilebasedUserManager, User, UserManager, UserAlreadyExists
+from octoprint.users import FilebasedUserManager, User, UserManager, UserAlreadyExists, UnknownUser
 from octoprint.util import atomic_write
 import os
 import yaml
@@ -19,7 +19,7 @@ class LDAPUser(User):
         self._dn = dn
         self._groups = groups
 
-    def distinguished_name(self):
+    def get_distinguished_name(self):
         return self._dn
 
     def groups(self):
@@ -37,7 +37,15 @@ class LDAPUserManager(FilebasedUserManager,
         self._logger.debug("Search for userid=%s, apiKey=%s, session=%s" % (userid, apikey, session))
         user = FilebasedUserManager.findUser(self, userid=userid, apikey=apikey, session=session)
 
-        if user is None and userid is not None:
+        transformation = self.get_plugin_setting("search_term_transform")
+        if not user and userid and transformation:
+            self._logger.debug("Transforming %s using %s" % (userid, transformation))
+            userid = getattr(str, transformation)(str(userid))
+            self._logger.debug("Now searching for %s" % userid)
+            if user is None:
+                user = FilebasedUserManager.findUser(self, userid=userid, apikey=apikey, session=session)
+
+        if not user and userid:
             self._logger.debug("User %s not found locally, treating as LDAP" % userid)
             search_filter = self.get_plugin_setting("search_filter")
 
@@ -114,16 +122,27 @@ class LDAPUserManager(FilebasedUserManager,
         self._logger.debug("%s is a %s" % (username, type(user)))
         if isinstance(user, LDAPUser):
             # in case group settings changed either in auth_ldap settings OR on LDAP directory
-            if user.is_active() and isinstance(self.group_filter(user.distinguished_name()), list):
-                self._logger.debug("Checking %s password via LDAP" % username)
-                client = self.get_ldap_client(user.distinguished_name(), password)
+            groups = self.group_filter(user.get_distinguished_name());
+            if user.is_active() and isinstance(groups, list):
+                self.changeUserGroups(user.get_name(), groups)
+                self._logger.debug("Checking %s password via LDAP" % user.get_name())
+                client = self.get_ldap_client(user.get_distinguished_name(), password)
                 return client is not None
             else:
-                self._logger.debug("%s is inactive or no longer a member of required groups" % username)
+                self._logger.debug("%s is inactive or no longer a member of required groups" % user.get_name())
         else:
-            self._logger.debug("Checking %s password via file" % username)
-            return FilebasedUserManager.checkPassword(self, username, password)
+            self._logger.debug("Checking %s password via file" % user.get_name())
+            return FilebasedUserManager.checkPassword(self, user.get_name(), password)
         return False
+
+    def changeUserGroups(self, username, groups):
+        if username not in self._users.keys():
+            raise UnknownUser(username)
+
+        if self._users[username]._groups != groups:
+            self._users[username]._groups = groups
+            self._dirty = True
+            self._save()
 
     # Get a setting, setting to default value if not already set
     def get_plugin_setting(self, key):
@@ -181,7 +200,7 @@ class LDAPUserManager(FilebasedUserManager,
                     "password": None,  # password field has to exist because of how FilebasedUserManager processes
                     # data, but an empty password hash cannot match any entered password (as
                     # whatever the user enters will be hashed... even an empty password.
-                    "dn": user.distinguished_name(),
+                    "dn": user.get_distinguished_name(),
                     "groups": user.groups(),
                     "active": user.is_active(),
                     "roles": user.roles,
@@ -292,6 +311,7 @@ class LDAPUserManager(FilebasedUserManager,
             request_tls_cert=None,
             search_base=None,
             search_filter="uid=%s",
+            search_term_transform=None,
             uri=None
         )
 
@@ -309,6 +329,7 @@ class LDAPUserManager(FilebasedUserManager,
                 ["request_tls_cert"],
                 ["search_base"],
                 ["search_filter"],
+                ["search_term_transform"],
                 ["uri"],
             ],
             user=[],

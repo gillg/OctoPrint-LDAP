@@ -44,6 +44,13 @@
             <small>Use <code>%s</code> as placeholder for login user ID</small>
         </div>
 
+        <label for="search_term_transform" class="control-label">{{ _('Search term lowercase') }}</label>
+        <div class="controls">
+            <input id="search_term_transform" type="text" class="input-block-level"
+                   data-bind="value: settings.plugins.auth_ldap.search_term_transform" placeholder="lower">
+            <small>A python string transformation (e.g. lower or upper)</small>
+        </div>
+
         <label for="local_cache" class="control-label">{{ _('Local cache') }}</label>
         <div class="controls">
             <input id="local_cache" type="checkbox" class="input-block-level"
