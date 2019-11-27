@@ -16,8 +16,9 @@ import yaml
 class LDAPUser(User):
     USER_TYPE = "LDAP"
 
+    # noinspection SpellCheckingInspection,PyShadowingNames
     def __init__(self, username, active=True, roles=None, dn=None, groups=None, apikey=None, settings=None):
-        User.__init__(self, username, None, active, roles, apikey)
+        User.__init__(self, username, None, active, roles, apikey, settings)
         self._dn = dn
         self._groups = groups
 
@@ -35,13 +36,17 @@ class LDAPUserManager(FilebasedUserManager):
 
     def __init__(self, plugin, **kwargs):
         self._plugin = plugin
+        # noinspection PyArgumentList
         FilebasedUserManager.__init__(self, **kwargs)
 
     def plugin_settings(self):
         return self._plugin.get_settings()
 
-    ###################################################################
-    # UserManager overrides
+    """
+    -------------------------------------------------------------------
+    UserManager overrides
+    -------------------------------------------------------------------
+    """
 
     def findUser(self, userid=None, apikey=None, session=None):
         self._logger.debug("Search for userid=%s, apiKey=%s, session=%s" % (userid, apikey, session))
@@ -148,10 +153,11 @@ class LDAPUserManager(FilebasedUserManager):
             else:
                 self._logger.debug("%s is inactive or no longer a member of required groups" % user.get_name())
         else:
-            self._logger.debug("Checking %s password via file" % user.get_name())
+            self._logger.debug("Checking %s password via users.yaml" % user.get_name())
             return FilebasedUserManager.checkPassword(self, user.get_name(), password)
         return False
 
+    # noinspection PyPep8Naming
     def changeUserGroups(self, username, groups):
         if username not in self._users.keys():
             raise UnknownUser(username)
@@ -161,12 +167,11 @@ class LDAPUserManager(FilebasedUserManager):
             self._dirty = True
             self._save()
 
-    """
-    since the FilebasedUserManager doesn't provide mixins or hooks for overriding loads, we have
-    to copy the original code wholesale and make edits
-    """
-
     def _load(self):
+        """
+        Since the FilebasedUserManager doesn't provide mixins or hooks for overriding loads, we have
+        to copy the original code wholesale and make edits
+        """
         if os.path.exists(self._userfile) and os.path.isfile(self._userfile):
             self._customized = True
             with open(self._userfile, "r") as f:
@@ -176,9 +181,9 @@ class LDAPUserManager(FilebasedUserManager):
                     apikey = None
                     if "apikey" in attributes:
                         apikey = attributes["apikey"]
-                    settings = dict()
+                    user_settings = dict()
                     if "settings" in attributes:
-                        settings = attributes["settings"]
+                        user_settings = attributes["settings"]
                     user_type = False
                     if "type" in attributes:
                         user_type = attributes["type"]
@@ -186,24 +191,23 @@ class LDAPUserManager(FilebasedUserManager):
                         self._logger.debug("%s loaded as %s user" % (name, user_type))
                         self._users[name] = LDAPUser(username=name, active=attributes["active"],
                                                      roles=attributes["roles"], groups=attributes["groups"],
-                                                     dn=attributes["dn"], apikey=apikey, settings=settings)
+                                                     dn=attributes["dn"], apikey=apikey, settings=user_settings)
                     else:
                         self._logger.debug("%s loaded as file-based user" % name)
                         self._users[name] = User(name, attributes["password"], attributes["active"],
                                                  attributes["roles"],
-                                                 apikey=apikey, settings=settings)
+                                                 apikey=apikey, settings=user_settings)
                     for sessionid in self._sessionids_by_userid.get(name, set()):
                         if sessionid in self._session_users_by_session:
                             self._session_users_by_session[sessionid].update_user(self._users[name])
         else:
             self._customized = False
 
-    """
-    since the FilebasedUserManager doesn't provide mixins or hooks for overriding saves, we have
-    to copy the original code wholesale and make edits
-    """
-
     def _save(self, force=False):
+        """
+        Since the FilebasedUserManager doesn't provide mixins or hooks for overriding saves, we have
+        to copy the original code wholesale and make edits
+        """
         if not self._dirty and not force:
             return
 
@@ -211,6 +215,7 @@ class LDAPUserManager(FilebasedUserManager):
         for name in self._users.keys():
             user = self._users[name]
             if isinstance(user, LDAPUser):
+                # noinspection PyProtectedMember
                 data[name] = {
                     "type": LDAPUser.USER_TYPE,
                     "password": None,  # password field has to exist because of how FilebasedUserManager processes
@@ -224,6 +229,7 @@ class LDAPUserManager(FilebasedUserManager):
                     "settings": user.get_all_settings()
                 }
             else:
+                # noinspection PyProtectedMember
                 data[name] = {
                     "password": user._passwordHash,
                     "active": user.is_active(),
@@ -237,8 +243,11 @@ class LDAPUserManager(FilebasedUserManager):
             self._dirty = False
         self._load()
 
-    ###################################################################
-    # LDAP interactions
+    """
+    -------------------------------------------------------------------
+    LDAP interactions
+    -------------------------------------------------------------------
+    """
 
     def get_ldap_client(self, user=None, password=None):
         uri = self.plugin_settings().get(["uri"])
@@ -254,7 +263,7 @@ class LDAPUserManager(FilebasedUserManager):
             self._logger.debug("Initializing LDAP connection to %s" % uri)
             client = ldap.initialize(uri)
             if self.plugin_settings().get(["request_tls_cert"]):
-                self._logger.debug("Will require TLS certificate")
+                self._logger.debug("Requesting TLS certificate")
                 client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_DEMAND)
             else:
                 client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
@@ -268,14 +277,14 @@ class LDAPUserManager(FilebasedUserManager):
             self._logger.error(json.dumps(e.message))
         return None
 
-    def ldap_search(self, filter, base=None, scope=ldap.SCOPE_SUBTREE):
+    def ldap_search(self, ldap_filter, base=None, scope=ldap.SCOPE_SUBTREE):
         if not base:
             base = self.plugin_settings().get(["search_base"])
         try:
             client = self.get_ldap_client()
             if client is not None:
-                self._logger.debug("Searching LDAP, base: %s and filter: %s" % (base, filter))
-                result = client.search_s(base, scope, filter)
+                self._logger.debug("Searching LDAP, base: %s and filter: %s" % (base, ldap_filter))
+                result = client.search_s(base, scope, ldap_filter)
                 client.unbind_s()
                 if result:
                     dn, data = result[0]
@@ -293,6 +302,7 @@ class LDAPUserManager(FilebasedUserManager):
 
 class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
 
+    # noinspection PyUnusedLocal,PyShadowingNames
     def ldap_user_factory(self, components, settings):
         return LDAPUserManager(plugin=self)
 
@@ -340,6 +350,8 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
     def get_settings_restricted_paths(self):
         return dict(
             admin=[
+                ["auth_password"],
+                ["auth_user"],
                 ["default_role_admin"],
                 ["default_role_user"],
                 ["group_filter"],
@@ -353,20 +365,7 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
                 ["uri"],
             ],
             user=[],
-            never=[
-                ["auth_user"],
-                ["auth_password"]
-            ]
-        )
-
-    def get_settings_preprocessors(self):
-        return dict(
-            # setter preprocessors
-            auth_password=lambda encoded_text: base64.b64decode(encoded_text) if encoded_text else None
-        ), dict(
-            # setter preprocessors
-            auth_password=lambda plaintext: base64.b64encode(plaintext) if plaintext else None,
-            groups=lambda groups: groups if groups else None
+            never=[]
         )
 
     def get_settings_version(self):
@@ -384,11 +383,17 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
                 ldap_search_base="search_base",
                 ldap_groups="groups"
             )
+            # noinspection PyTypeChecker
             for prev_key, key in prev_settings.iteritems():
                 prev_value = settings().get(["accessControl", prev_key])
                 if prev_value is not None:
-                    self._settings.set([key], prev_value)
-                    self._logger.info("accessControl.%s setting migrated to plugins.auth_ldap.%s" % (prev_key, key))
+                    cleaned_prev_value = prev_value
+                    if prev_key == "ldap_tls_reqcert" and prev_value == "demand":
+                        cleaned_prev_value = True
+                    self._settings.set([key], cleaned_prev_value)
+                    self._logger.info(
+                        "accessControl.%s=%s setting migrated to plugins.auth_ldap.%s=%s"
+                        % (prev_key, prev_value, key, cleaned_prev_value))
                 settings().set(["accessControl", prev_key], None)
 
     # TemplatePlugin
@@ -400,6 +405,7 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
 __plugin_name__ = "Auth LDAP"
 
 
+# noinspection PyGlobalUndefined
 def __plugin_load__():
     global __plugin_implementation__
     __plugin_implementation__ = AuthLDAPPlugin()
