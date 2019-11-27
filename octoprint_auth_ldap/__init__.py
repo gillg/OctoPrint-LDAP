@@ -90,7 +90,7 @@ class LDAPUserManager(FilebasedUserManager):
     def group_filter(self, dn):
         groups = self.plugin_settings().get(["groups"])
         actual_groups = []
-        if groups is not None:
+        if groups:
             group_filter = self.plugin_settings().get(["group_filter"])
             group_member_filter = self.plugin_settings().get(["group_member_filter"])
             for group in str(groups).split(","):
@@ -98,6 +98,7 @@ class LDAPUserManager(FilebasedUserManager):
                                           "(" + group_filter % group.strip() + ")" +
                                           "(" + (group_member_filter % dn) + ")" +
                                           ")")
+                self._logger.debug("Found %s" % json.dumps(result))
                 if result is not None:
                     actual_groups.append(group)
             if not actual_groups:
@@ -120,8 +121,8 @@ class LDAPUserManager(FilebasedUserManager):
         if username in self._users.keys() and not overwrite:
             raise UserAlreadyExists(username)
 
-        if dn is not None and password is None:
-            if groups is None:
+        if dn and not password:
+            if not groups:
                 groups = []
             self._users[username] = LDAPUser(username, active, roles, dn, groups, apikey)
         else:
@@ -241,11 +242,11 @@ class LDAPUserManager(FilebasedUserManager):
 
     def get_ldap_client(self, user=None, password=None):
         uri = self.plugin_settings().get(["uri"])
-        if uri is None:
+        if not uri:
             self._logger.debug("No LDAP URI")
             return None
 
-        if user is None:
+        if not user:
             user = self.plugin_settings().get(["auth_user"])
             password = self.plugin_settings().get(["auth_password"])
 
@@ -259,7 +260,6 @@ class LDAPUserManager(FilebasedUserManager):
                 client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
             if user is not None:
                 self._logger.debug("Binding to LDAP as %s" % user)
-                self._logger.debug(password)
                 client.bind_s(user, password)
             return client
         except ldap.INVALID_CREDENTIALS:
@@ -269,7 +269,7 @@ class LDAPUserManager(FilebasedUserManager):
         return None
 
     def ldap_search(self, filter, base=None, scope=ldap.SCOPE_SUBTREE):
-        if base is None:
+        if not base:
             base = self.plugin_settings().get(["search_base"])
         try:
             client = self.get_ldap_client()
@@ -327,7 +327,7 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
             default_role_admin=False,
             default_role_user=True,
             group_filter="ou=%s",
-            group_member_filter="uniqueMember=uid=%s",
+            group_member_filter="uniqueMember=%s",
             groups=None,
             local_cache=False,
             request_tls_cert=None,
@@ -360,10 +360,13 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
         )
 
     def get_settings_preprocessors(self):
-        return dict(  # getter preprocessors
-            auth_password=lambda x: base64.b64decode(x)
-        ), dict(  # setter preprocessors
-            auth_password=lambda x: base64.b64encode(x)
+        return dict(
+            # setter preprocessors
+            auth_password=lambda encoded_text: base64.b64decode(encoded_text) if encoded_text else None
+        ), dict(
+            # setter preprocessors
+            auth_password=lambda plaintext: base64.b64encode(plaintext) if plaintext else None,
+            groups=lambda groups: groups if groups else None
         )
 
     def get_settings_version(self):
@@ -375,25 +378,18 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
                 "Migrating %s settings from version %s to version %s" % (self._plugin_name, current, target))
 
             # migrate old settings to new locations and erase old settings
-            self._settings.set(["uri"], settings().get(["accessControl", "ldap_uri"]))
-            settings().set(["accessControl", "ldap_uri"], None)
-
-            self._settings.set(["request_tls_cert"], settings().get(["accessControl", "ldap_tls_reqcert"]))
-            settings().set(["accessControl", "ldap_tls_reqcert"], None)
-
-            self._settings.set(["search_base"], settings().get(["accessControl", "ldap_search_base"]))
-            settings().set(["accessControl", "ldap_search_base"], None)
-
-            self._settings.set(["search_base"], settings().get(["accessControl", "ldap_groups"]))
-            settings().set(["accessControl", "ldap_groups"], None)
-
-            # set new settings to default values
-            self._settings.set(["local_cache"], self.get_settings_defaults()["local_cache"])
-            self._settings.set(["default_role_admin"], self.get_settings_defaults()["default_role_admin"])
-            self._settings.set(["default_role_user"], self.get_settings_defaults()["default_role_user"])
-            self._settings.set(["search_filter"], self.get_settings_defaults()["search_filter"])
-            self._settings.set(["group_filter"], self.get_settings_defaults()["group_filter"])
-            self._settings.set(["group_member_filter"], self.get_settings_defaults()["group_member_filter"])
+            prev_settings = dict(  # prev_setting_name="new_setting_name"
+                ldap_uri="uri",
+                ldap_tls_reqcert="request_tls_cert",
+                ldap_search_base="search_base",
+                ldap_groups="groups"
+            )
+            for prev_key, key in prev_settings.iteritems():
+                prev_value = settings().get(["accessControl", prev_key])
+                if prev_value is not None:
+                    self._settings.set([key], prev_value)
+                    self._logger.info("accessControl.%s setting migrated to plugins.auth_ldap.%s" % (prev_key, key))
+                settings().set(["accessControl", prev_key], None)
 
     # TemplatePlugin
 
