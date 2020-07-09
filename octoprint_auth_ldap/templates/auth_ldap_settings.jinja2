@@ -57,16 +57,16 @@
                    data-bind="checked: settings.plugins.auth_ldap.local_cache">
         </div>
 
-        <label for="default_user" class="control-label">{{ _('Default user role') }}</label>
+        <label for="default_user" class="control-label">{{ _('Default user group') }}</label>
         <div class="controls">
             <input id="default_user" type="checkbox" class="input-block-level"
-                   data-bind="checked: settings.plugins.auth_ldap.default_role_user">
+                   data-bind="checked: settings.plugins.auth_ldap.default_user_group">
         </div>
 
-        <label for="default_admin" class="control-label">{{ _('Default admin role') }}</label>
+        <label for="default_admin" class="control-label">{{ _('Default admin group') }}</label>
         <div class="controls">
             <input id="default_admin" type="checkbox" class="input-block-level"
-                   data-bind="checked: settings.plugins.auth_ldap.default_role_admin">
+                   data-bind="checked: settings.plugins.auth_ldap.default_admin_group">
         </div>
     </div>
 

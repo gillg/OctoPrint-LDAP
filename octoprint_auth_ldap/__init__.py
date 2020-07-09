@@ -4,50 +4,64 @@ from __future__ import absolute_import
 import json
 import ldap
 from ldap.filter import filter_format
+import io
 from octoprint.settings import settings
 from octoprint.plugin import SettingsPlugin, TemplatePlugin
-from octoprint.access.users import FilebasedUserManager, User, UserManager, UserAlreadyExists, UnknownUser
-from octoprint.access.groups import FilebasedGroupManager, Group, GroupManager, GroupNeed
+from octoprint.access.users import FilebasedUserManager, User, UserManager, UserAlreadyExists
+from octoprint.access.groups import FilebasedGroupManager
 from octoprint.util import atomic_write
 import os
 import yaml
 
 
+# TODO map LDAP groups on to OctoPrint groups?
+
+
 class LDAPUser(User):
     USER_TYPE = "LDAP"
 
-    # noinspection SpellCheckingInspection,PyShadowingNames
-    def __init__(self, username, active=True, permissions=None, dn=None, groups=None, apikey=None, settings=None):
-        User.__init__(self, username, None, active, permissions, groups, apikey, settings)
-        self._dn = dn
-        self._groups = groups
+    # noinspection PyShadowingNames
+    def __init__(
+            self,
+            username,
+            active=True,
+            permissions=None,
+            groups=None,
+            apikey=None,
+            settings=None,
+            dn=None
+    ):
+        User.__init__(
+            self,
+            username=username,
+            passwordHash=None,
+            active=active,
+            permissions=permissions,
+            groups=groups,
+            apikey=apikey,
+            settings=settings
+        )
+        self._distinguished_name = dn
 
-    def get_distinguished_name(self):
-        return self._dn
-
-    def get_groups(self):
-        return self._groups
-
-    def set_groups(self, groups):
-        self._groups = groups
-
-
-class LDAPGroupManager(FilebasedGroupManager):
-    def __init__(self, plugin, **kwargs):
-        self._plugin = plugin
-        FilebasedGroupManager.__init__(self, **kwargs)
+    @property
+    def distinguished_name(self):
+        return self._distinguished_name
 
 
 class LDAPUserManager(FilebasedUserManager):
 
     def __init__(self, plugin, **kwargs):
         self._plugin = plugin
-        # noinspection PyArgumentList
-        ldapgroups = LDAPGroupManager(self)
-        FilebasedUserManager.__init__(self, ldapgroups, **kwargs)
+        FilebasedUserManager.__init__(self, group_manager=FilebasedGroupManager(), **kwargs)
 
     def plugin_settings(self):
         return self._plugin.get_settings()
+
+    """
+    -------------------------------------------------------------------
+    UserManager overrides
+    -------------------------------------------------------------------
+    """
 
     def find_user(self, userid=None, apikey=None, session=None):
         self._logger.debug("Search for userid=%s, apiKey=%s, session=%s" % (userid, apikey, session))
@@ -68,8 +82,8 @@ class LDAPUserManager(FilebasedUserManager):
 
             """
             operating on the wildly unsafe assumption that the admin who configures this plugin will have their head
-            screwed on right and NOT escaping their search strings... only escaping unsafe user-entered text that is
-            passed directly to search filters
+            screwed on right and we are NOT escaping their search strings... only escaping unsafe user-entered text that
+            is passed directly to search filters
             """
             ldap_user = self.ldap_search(filter_format(search_filter, (userid,)))
 
@@ -80,10 +94,20 @@ class LDAPUserManager(FilebasedUserManager):
                     self._logger.debug("Creating new LDAPUser %s" % userid)
                     # TODO: make username configurable or make dn configurable (e.g. could be userPrincipalName?)
                     if self.plugin_settings().get(["local_cache"]):
-                        self.add_user(username=userid, dn=ldap_user["dn"], permissions=None, groups=groups, active=True)
+                        self.add_user(
+                            username=userid,
+                            dn=ldap_user["dn"],
+                            groups=groups,
+                            active=True
+                        )
                         user = self._users[userid]
                     else:
-                        user = LDAPUser(username=userid, dn=ldap_user["dn"], permissions=None, groups=groups, active=True, )
+                        user = LDAPUser(
+                            username=userid,
+                            dn=ldap_user["dn"],
+                            groups=groups,
+                            active=True
+                        )
         return user
 
     """
@@ -118,41 +142,51 @@ class LDAPUserManager(FilebasedUserManager):
             roles.append("admin")
         return roles
 
-    def add_user(self, username, password=None, active=False, permissions=None, groups=None, apikey=None, overwrite=False, dn=None):
+    def add_user(self, username, password=None, active=False, permissions=None, groups=None, apikey=None,
+                 overwrite=False,
+                 dn=None, ldap_groups=None):
         if not permissions:
             permissions = []
         permissions = self._to_permissions(*permissions)
+
         if not groups:
             groups = self._group_manager.default_groups
         groups = self._to_groups(*groups)
 
-        if username in self._users and not overwrite:
+        if username in self._users.keys() and not overwrite:
             raise UserAlreadyExists(username)
 
         if dn and not password:
-            self._users[username] = LDAPUser(username, active, permissions, dn, groups, apikey)
+            self._users[username] = LDAPUser(
+                username=username,
+                active=active,
+                permissions=permissions,
+                groups=groups,
+                dn=dn,
+                apikey=apikey
+            )
         else:
-            self._users[username] = User(username,
-                                     UserManager.create_password_hash(password,
-                                                                      settings=self._settings),
-                                     active,
-                                     permissions,
-                                     groups,
-                                     apikey=apikey)
+            self._users[username] = User(
+                username=username,
+                passwordHash=UserManager.create_password_hash(password, settings=self._settings),
+                active=active,
+                permissions=permissions,
+                groups=groups,
+                apikey=apikey
+            )
         self._dirty = True
         self._save()
 
     def check_password(self, username, password):
-        user = self.find_user(userid=username)
+        user = self.findUser(userid=username)
         self._logger.debug("%s is a %s" % (username, type(user)))
         if isinstance(user, LDAPUser):
             # in case group settings changed either in auth_ldap settings OR on LDAP directory
-            groups = self.group_filter(user.get_distinguished_name())
-            self._logger.debug("User groups are: %s" % (groups))
+            groups = self.group_filter(user._distinguished_name)
             if user.is_active and isinstance(groups, list):
-                self.changeUserGroups(user.get_name(), groups)
+                self.change_user_groups(user.get_name(), groups)
                 self._logger.debug("Checking %s password via LDAP" % user.get_name())
-                client = self.get_ldap_client(user.get_distinguished_name(), password)
+                client = self.get_ldap_client(user._distinguished_name, password)
                 return client is not None
             else:
                 self._logger.debug("%s is inactive or no longer a member of required groups" % user.get_name())
@@ -161,73 +195,70 @@ class LDAPUserManager(FilebasedUserManager):
             return FilebasedUserManager.check_password(self, user.get_name(), password)
         return False
 
-    # noinspection PyPep8Naming
-    def changeUserGroups(self, username, groups):
-        if username not in self._users.keys():
-           raise UnknownUser(username)
-
-        #if isinstance(self._users[username], LDAPUser) and self._users[username].get_groups() != groups:
-        #   self._users[username].set_groups(groups)
-        #   self._dirty = True
-        #   self._save()
-
     def _load(self):
         if os.path.exists(self._userfile) and os.path.isfile(self._userfile):
             self._customized = True
-            with open(self._userfile, "r") as f:
+            with io.open(self._userfile, 'rt', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
                 for name, attributes in data.items():
-                    print(name,attributes)
                     permissions = []
                     if "permissions" in attributes:
                         permissions = attributes["permissions"]
+                    permissions = self._to_permissions(*permissions)
 
-                    groups = {
-                        self._group_manager.user_group}  # the user group is mandatory for all logged in users
+                    groups = {self._group_manager.user_group}  # the user group is mandatory for all logged in users
                     if "groups" in attributes:
                         groups |= set(attributes["groups"])
-
-                    # migrate from roles to permissions
-                    if "roles" in attributes and not "permissions" in attributes:
-                        self._logger.info("Migrating user {} to new granular permission system".format(name))
-
-                        groups |= set(self._migrate_roles_to_groups(attributes["roles"]))
-                        self._dirty = True
-
-                    apikey = None
-                    if "apikey" in attributes:
-                        apikey = attributes["apikey"]
-                    settings = dict()
-                    if "settings" in attributes:
-                        settings = attributes["settings"]
 
                     user_type = False
                     if "type" in attributes:
                         user_type = attributes["type"]
-                    if user_type == LDAPUser.USER_TYPE:
-                        self._logger.debug("%s loaded as %s user" % (name, user_type))
-                        self._logger.debug("Loaded User groups: %s\n" % (self._to_groups(*groups)))
-                        self._users[name] = LDAPUser(username=name, active=attributes["active"],
-                                                         permissions=self._to_permissions(*permissions),
-                                                         groups=self._to_groups(*groups),
-                                                         dn=attributes["dn"],
-                                                         apikey=apikey,
-                                                         settings=settings)
-                    else:
-                        self._logger.debug("%s loaded as file-based user" % name)
-                        self._users[name] = User(username=name,
-                                                passwordHash=attributes["password"],
-                                                active=attributes["active"],
-                                                permissions=self._to_permissions(*permissions),
-                                                groups=self._to_groups(*groups),
-                                                apikey=apikey,
-                                                settings=settings)
-                    for sessionid in self._sessionids_by_userid.get(name, set()):
-                        if sessionid in self._session_users_by_session:
-                            self._session_users_by_session[sessionid].update_user(self._users[name])
 
-            #if self._dirty:
-            #   self._save()
+                    # migrate from roles to permissions
+                    if "roles" in attributes and "permissions" not in attributes:
+                        self._logger.info("Migrating user %s to new granular permission system" % name)
+                        groups |= set(self._migrate_roles_to_groups(attributes["roles"]))
+                        self._dirty = True
+
+                    # because this plugin used to use the groups field, we need to wait to make sure it's safe to do this
+                    groups = self._to_groups(*groups)
+
+                    apikey = None
+                    if "apikey" in attributes:
+                        apikey = attributes["apikey"]
+
+                    user_settings = dict()
+                    if "settings" in attributes:
+                        user_settings = attributes["settings"]
+
+                    if user_type == LDAPUser.USER_TYPE:
+                        self._logger.debug("Loading %s as %s" % (name, LDAPUser.__name__))
+                        self._users[name] = LDAPUser(
+                            username=name,
+                            active=attributes["active"],
+                            permissions=permissions,
+                            groups=groups,
+                            dn=attributes["dn"],
+                            apikey=apikey,
+                            settings=user_settings
+                        )
+                    else:
+                        self._logger.debug("Loading %s as %s" % (name, User.__name__))
+                        self._users[name] = User(
+                            username=name,
+                            passwordHash=attributes["password"],
+                            active=attributes["active"],
+                            permissions=permissions,
+                            groups=groups,
+                            apikey=apikey,
+                            settings=user_settings
+                        )
+                        for session_id in self._sessionids_by_userid.get(name, set()):
+                            if session_id in self._session_users_by_session:
+                                self._session_users_by_session[session_id].update_user(self._users[name])
+
+            if self._dirty:
+                self._save()
 
         else:
             self._customized = False
@@ -237,23 +268,33 @@ class LDAPUserManager(FilebasedUserManager):
             return
 
         data = {}
-        for name in self._users.keys():
-            print(name)
-            user = self._users[name]
+        for name, user in self._users.items():
+            if not user or not isinstance(user, User):
+                self._logger.debug('Not saving %s' % name)
+                continue
+
             if isinstance(user, LDAPUser):
-                # noinspection PyProtectedMember
+                self._logger.debug('Saving %s as %s' % (name, LDAPUser.__name__))
                 data[name] = {
                     "type": LDAPUser.USER_TYPE,
+                    "dn": user.distinguished_name,
+
+                    # password field has to exist because of how FilebasedUserManager processes
+                    # data, but an empty password hash cannot match any entered password (as
+                    # whatever the user enters will be hashed... even an empty password.
                     "password": None,
+
                     "active": user._active,
                     "groups": self._from_groups(*user._groups),
                     "permissions": self._from_permissions(*user._permissions),
                     "apikey": user._apikey,
                     "settings": user._settings,
-                    "dn": user.get_distinguished_name()
-                }
 
+                    # TODO: deprecated, remove in 1.5.0
+                    "roles": user._roles
+                }
             else:
+                self._logger.debug('Saving %s as %s...' % (name, User.__name__))
                 data[name] = {
                     "password": user._passwordHash,
                     "active": user._active,
@@ -302,7 +343,7 @@ class LDAPUserManager(FilebasedUserManager):
         except ldap.INVALID_CREDENTIALS:
             self._logger.error("Invalid credentials to bind to LDAP as %s" % user)
         except ldap.LDAPError as e:
-            self._logger.error(json.dumps(e.message))
+            self._logger.error(json.dumps(e))
         return None
 
     def ldap_search(self, ldap_filter, base=None, scope=ldap.SCOPE_SUBTREE):
@@ -324,13 +365,13 @@ class LDAPUserManager(FilebasedUserManager):
                     """
                     return dict(dn=dn, data=data)
         except ldap.LDAPError as e:
-            self._logger.error(json.dumps(e.message))
+            self._logger.error(json.dumps(e))
         return None
 
 
 class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
 
-    # noinspection PyUnusedLocal,PyShadowingNames
+    # noinspection PyShadowingNames
     def ldap_user_factory(self, components, settings):
         return LDAPUserManager(plugin=self)
 
@@ -362,11 +403,11 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
         return dict(
             auth_password=None,
             auth_user=None,
-            default_role_admin=False,
-            default_role_user=True,
-            group_filter="ou=%s",
-            group_member_filter="uniqueMember=%s",
-            groups=None,
+            default_admin_group=False,
+            default_user_group=True,
+            ldap_group_filter="ou=%s",
+            ldap_group_member_filter="uniqueMember=%s",
+            Ldap_groups=None,
             local_cache=False,
             request_tls_cert=None,
             search_base=None,
@@ -377,52 +418,64 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
 
     def get_settings_restricted_paths(self):
         return dict(
-            admin=[
-                ["auth_password"],
-                ["auth_user"],
-                ["default_role_admin"],
-                ["default_role_user"],
-                ["group_filter"],
-                ["group_member_filter"],
-                ["groups"],
-                ["local_cache"],
-                ["request_tls_cert"],
-                ["search_base"],
-                ["search_filter"],
-                ["search_term_transform"],
-                ["uri"],
-            ],
+            admin=self.get_settings_defaults().keys(),
             user=[],
             never=[]
         )
 
     def get_settings_version(self):
-        return 2
+        return 3
 
     def on_settings_migrate(self, target, current):
-        if current is None:
+        if target != current:
             self._logger.info(
                 "Migrating %s settings from version %s to version %s" % (self._plugin_name, current, target))
+            if current is None:
+                self.migrate_settings_1_to_2()
+            if current != 3:  # intentional fall-through to bring None _and_ 2 to 3 (my kingdom for a switch statement!)
+                self.migrate_settings_2_to_3()
 
-            # migrate old settings to new locations and erase old settings
-            prev_settings = dict(  # prev_setting_name="new_setting_name"
-                ldap_uri="uri",
-                ldap_tls_reqcert="request_tls_cert",
-                ldap_search_base="search_base",
-                ldap_groups="groups"
-            )
-            # noinspection PyTypeChecker
-            for prev_key, key in prev_settings.iteritems():
-                prev_value = settings().get(["accessControl", prev_key])
-                if prev_value is not None:
-                    cleaned_prev_value = prev_value
-                    if prev_key == "ldap_tls_reqcert" and prev_value == "demand":
-                        cleaned_prev_value = True
-                    self._settings.set([key], cleaned_prev_value)
-                    self._logger.info(
-                        "accessControl.%s=%s setting migrated to plugins.auth_ldap.%s=%s"
-                        % (prev_key, prev_value, key, cleaned_prev_value))
-                settings().set(["accessControl", prev_key], None)
+    def migrate_settings_1_to_2(self):
+        # changing settings location to plugin standard location and renaming to simplify access
+
+        # migrate old settings to new locations and erase old settings
+        prev_settings = dict(  # prev_setting_name="new_setting_name"
+            ldap_uri="uri",
+            ldap_tls_reqcert="request_tls_cert",
+            ldap_search_base="search_base",
+            ldap_groups="groups"
+        )
+        for prev_key, key in prev_settings.items():
+            prev_value = settings().get(["accessControl", prev_key])
+            if prev_value is not None:
+                cleaned_prev_value = prev_value
+                if prev_key == "ldap_tls_reqcert" and prev_value == "demand":
+                    cleaned_prev_value = True
+                self._settings.set([key], cleaned_prev_value)
+                self._logger.info(
+                    "accessControl.%s=%s setting migrated to plugins.%s.%s=%s"
+                    % (prev_key, prev_value, self._plugin_name, key, cleaned_prev_value))
+            settings().set(["accessControl", prev_key], None)
+
+    def migrate_settings_2_to_3(self):
+        # renaming to get rid of roles in favor of local groups, and clarifying LDAP group settings
+
+        # migrate old settings to new locations and erase old settings
+        prev_settings = dict(  # prev_setting_name="new_setting_name"
+            default_role_admin="default_admin_group",
+            default_role_user="default_user_group",
+            group_filter="ldap_group_filter",
+            group_member_filter="ldap_group_member_filter",
+            groups="Ldap_groups",
+        )
+        for prev_key, key in prev_settings.items():
+            prev_value = settings().get([prev_key])
+            if prev_value is not None:
+                self._settings.set([key], prev_value)
+                self._logger.info(
+                    "plugin.%s.%s=%s setting migrated to plugins.%s.%s=%s"
+                    % (self._plugin_name, prev_key, prev_value, self._plugin_name, key, prev_value))
+            settings().set([prev_key], None)
 
     # TemplatePlugin
 
@@ -431,13 +484,15 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
 
 
 __plugin_name__ = "Auth LDAP"
+__plugin_pythoncompat__ = ">=3,<4"
 
 
-# noinspection PyGlobalUndefined
 def __plugin_load__():
+    # noinspection PyGlobalUndefined
     global __plugin_implementation__
     __plugin_implementation__ = AuthLDAPPlugin()
 
+    # noinspection PyGlobalUndefined
     global __plugin_hooks__
     __plugin_hooks__ = {
         "octoprint.access.users.factory": __plugin_implementation__.ldap_user_factory,
