@@ -1,7 +1,6 @@
 # OctoPrint Auth LDAP Plugin
 
-This plugin authenticates users against an LDAP server in addition to the local file-based system.
-
+This plugin authenticates users against an LDAP server in addition to the local file-based system. This is an attempt to update this plugin for OctoPrint 1.4.0
 ---
 
 #### Prerequisites
@@ -24,13 +23,13 @@ apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
 You can install this via the OctoPrint plugin manager GUI using this URL:
 
 ```
-https://github.com/gillg/OctoPrint-LDAP/archive/master.zip
+https://github.com/paukstelis/OctoPrint-LDAP/archive/master.zip
 ```
 
 The plugin may also be installed within the oprint venv using the command
 
 ```bash
-pip install https://github.com/gillg/OctoPrint-LDAP/archive/master.zip
+pip install https://github.com/paukstelis/OctoPrint-LDAP/archive/master.zip
 ```
 
 #### General Configuration

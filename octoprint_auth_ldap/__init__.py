@@ -6,7 +6,8 @@ import ldap
 from ldap.filter import filter_format
 from octoprint.settings import settings
 from octoprint.plugin import SettingsPlugin, TemplatePlugin
-from octoprint.users import FilebasedUserManager, User, UserManager, UserAlreadyExists, UnknownUser
+from octoprint.access.users import FilebasedUserManager, User, UserManager, UserAlreadyExists, UnknownUser
+from octoprint.access.groups import FilebasedGroupManager, Group, GroupManager, GroupNeed
 from octoprint.util import atomic_write
 import os
 import yaml
@@ -16,8 +17,8 @@ class LDAPUser(User):
     USER_TYPE = "LDAP"
 
     # noinspection SpellCheckingInspection,PyShadowingNames
-    def __init__(self, username, active=True, roles=None, dn=None, groups=None, apikey=None, settings=None):
-        User.__init__(self, username, None, active, roles, apikey, settings)
+    def __init__(self, username, active=True, permissions=None, dn=None, groups=None, apikey=None, settings=None):
+        User.__init__(self, username, None, active, permissions, groups, apikey, settings)
         self._dn = dn
         self._groups = groups
 
@@ -31,25 +32,26 @@ class LDAPUser(User):
         self._groups = groups
 
 
+class LDAPGroupManager(FilebasedGroupManager):
+    def __init__(self, plugin, **kwargs):
+        self._plugin = plugin
+        FilebasedGroupManager.__init__(self, **kwargs)
+
+
 class LDAPUserManager(FilebasedUserManager):
 
     def __init__(self, plugin, **kwargs):
         self._plugin = plugin
         # noinspection PyArgumentList
-        FilebasedUserManager.__init__(self, **kwargs)
+        ldapgroups = LDAPGroupManager(self)
+        FilebasedUserManager.__init__(self, ldapgroups, **kwargs)
 
     def plugin_settings(self):
         return self._plugin.get_settings()
 
-    """
-    -------------------------------------------------------------------
-    UserManager overrides
-    -------------------------------------------------------------------
-    """
-
-    def findUser(self, userid=None, apikey=None, session=None):
+    def find_user(self, userid=None, apikey=None, session=None):
         self._logger.debug("Search for userid=%s, apiKey=%s, session=%s" % (userid, apikey, session))
-        user = FilebasedUserManager.findUser(self, userid=userid, apikey=apikey, session=session)
+        user = FilebasedUserManager.find_user(self, userid=userid, apikey=apikey, session=session)
 
         transformation = self.plugin_settings().get(["search_term_transform"])
         if not user and userid and transformation:
@@ -58,7 +60,7 @@ class LDAPUserManager(FilebasedUserManager):
             self._logger.debug("Search for user userid=%s" % transformed)
             if transformed != userid:
                 userid = transformed
-                user = FilebasedUserManager.findUser(self, userid=userid, apikey=apikey, session=session)
+                user = FilebasedUserManager.find_user(self, userid=userid, apikey=apikey, session=session)
 
         if not user and userid:
             self._logger.debug("User %s not found locally, treating as LDAP" % userid)
@@ -78,11 +80,10 @@ class LDAPUserManager(FilebasedUserManager):
                     self._logger.debug("Creating new LDAPUser %s" % userid)
                     # TODO: make username configurable or make dn configurable (e.g. could be userPrincipalName?)
                     if self.plugin_settings().get(["local_cache"]):
-                        self.addUser(username=userid, dn=ldap_user["dn"], groups=groups, active=True)
+                        self.add_user(username=userid, dn=ldap_user["dn"], permissions=None, groups=groups, active=True)
                         user = self._users[userid]
                     else:
-                        user = LDAPUser(username=userid, dn=ldap_user["dn"], groups=groups, active=True,
-                                        roles=self.default_roles())
+                        user = LDAPUser(username=userid, dn=ldap_user["dn"], permissions=None, groups=groups, active=True, )
         return user
 
     """
@@ -117,34 +118,38 @@ class LDAPUserManager(FilebasedUserManager):
             roles.append("admin")
         return roles
 
-    def addUser(self, username, password=None, active=False, roles=None, apikey=None, overwrite=False, dn=None,
-                groups=None):
-        if not roles:
-            roles = self.default_roles()
+    def add_user(self, username, password=None, active=False, permissions=None, groups=None, apikey=None, overwrite=False, dn=None):
+        if not permissions:
+            permissions = []
+        permissions = self._to_permissions(*permissions)
+        if not groups:
+            groups = self._group_manager.default_groups
+        groups = self._to_groups(*groups)
 
-        if username in self._users.keys() and not overwrite:
+        if username in self._users and not overwrite:
             raise UserAlreadyExists(username)
 
         if dn and not password:
-            if not groups:
-                groups = []
-            self._users[username] = LDAPUser(username, active, roles, dn, groups, apikey)
+            self._users[username] = LDAPUser(username, active, permissions, dn, groups, apikey)
         else:
             self._users[username] = User(username,
-                                         UserManager.createPasswordHash(password, settings=self._settings),
-                                         active,
-                                         roles,
-                                         apikey=apikey)
+                                     UserManager.create_password_hash(password,
+                                                                      settings=self._settings),
+                                     active,
+                                     permissions,
+                                     groups,
+                                     apikey=apikey)
         self._dirty = True
         self._save()
 
-    def checkPassword(self, username, password):
-        user = self.findUser(userid=username)
+    def check_password(self, username, password):
+        user = self.find_user(userid=username)
         self._logger.debug("%s is a %s" % (username, type(user)))
         if isinstance(user, LDAPUser):
             # in case group settings changed either in auth_ldap settings OR on LDAP directory
             groups = self.group_filter(user.get_distinguished_name())
-            if user.is_active() and isinstance(groups, list):
+            self._logger.debug("User groups are: %s" % (groups))
+            if user.is_active and isinstance(groups, list):
                 self.changeUserGroups(user.get_name(), groups)
                 self._logger.debug("Checking %s password via LDAP" % user.get_name())
                 client = self.get_ldap_client(user.get_distinguished_name(), password)
@@ -153,92 +158,116 @@ class LDAPUserManager(FilebasedUserManager):
                 self._logger.debug("%s is inactive or no longer a member of required groups" % user.get_name())
         else:
             self._logger.debug("Checking %s password via users.yaml" % user.get_name())
-            return FilebasedUserManager.checkPassword(self, user.get_name(), password)
+            return FilebasedUserManager.check_password(self, user.get_name(), password)
         return False
 
     # noinspection PyPep8Naming
     def changeUserGroups(self, username, groups):
         if username not in self._users.keys():
-            raise UnknownUser(username)
+           raise UnknownUser(username)
 
-        if isinstance(self._users[username], LDAPUser) and self._users[username].get_groups() != groups:
-            self._users[username].set_groups(groups)
-            self._dirty = True
-            self._save()
+        #if isinstance(self._users[username], LDAPUser) and self._users[username].get_groups() != groups:
+        #   self._users[username].set_groups(groups)
+        #   self._dirty = True
+        #   self._save()
 
     def _load(self):
-        """
-        Since the FilebasedUserManager doesn't provide mixins or hooks for overriding loads, we have
-        to copy the original code wholesale and make edits
-        """
         if os.path.exists(self._userfile) and os.path.isfile(self._userfile):
             self._customized = True
             with open(self._userfile, "r") as f:
                 data = yaml.safe_load(f)
-                for name in data.keys():
-                    attributes = data[name]
+                for name, attributes in data.items():
+                    print(name,attributes)
+                    permissions = []
+                    if "permissions" in attributes:
+                        permissions = attributes["permissions"]
+
+                    groups = {
+                        self._group_manager.user_group}  # the user group is mandatory for all logged in users
+                    if "groups" in attributes:
+                        groups |= set(attributes["groups"])
+
+                    # migrate from roles to permissions
+                    if "roles" in attributes and not "permissions" in attributes:
+                        self._logger.info("Migrating user {} to new granular permission system".format(name))
+
+                        groups |= set(self._migrate_roles_to_groups(attributes["roles"]))
+                        self._dirty = True
+
                     apikey = None
                     if "apikey" in attributes:
                         apikey = attributes["apikey"]
-                    user_settings = dict()
+                    settings = dict()
                     if "settings" in attributes:
-                        user_settings = attributes["settings"]
+                        settings = attributes["settings"]
+
                     user_type = False
                     if "type" in attributes:
                         user_type = attributes["type"]
                     if user_type == LDAPUser.USER_TYPE:
                         self._logger.debug("%s loaded as %s user" % (name, user_type))
+                        self._logger.debug("Loaded User groups: %s\n" % (self._to_groups(*groups)))
                         self._users[name] = LDAPUser(username=name, active=attributes["active"],
-                                                     roles=attributes["roles"], groups=attributes["groups"],
-                                                     dn=attributes["dn"], apikey=apikey, settings=user_settings)
+                                                         permissions=self._to_permissions(*permissions),
+                                                         groups=self._to_groups(*groups),
+                                                         dn=attributes["dn"],
+                                                         apikey=apikey,
+                                                         settings=settings)
                     else:
                         self._logger.debug("%s loaded as file-based user" % name)
-                        self._users[name] = User(name, attributes["password"], attributes["active"],
-                                                 attributes["roles"],
-                                                 apikey=apikey, settings=user_settings)
+                        self._users[name] = User(username=name,
+                                                passwordHash=attributes["password"],
+                                                active=attributes["active"],
+                                                permissions=self._to_permissions(*permissions),
+                                                groups=self._to_groups(*groups),
+                                                apikey=apikey,
+                                                settings=settings)
                     for sessionid in self._sessionids_by_userid.get(name, set()):
                         if sessionid in self._session_users_by_session:
                             self._session_users_by_session[sessionid].update_user(self._users[name])
+
+            #if self._dirty:
+            #   self._save()
+
         else:
             self._customized = False
 
     def _save(self, force=False):
-        """
-        Since the FilebasedUserManager doesn't provide mixins or hooks for overriding saves, we have
-        to copy the original code wholesale and make edits
-        """
         if not self._dirty and not force:
             return
 
         data = {}
         for name in self._users.keys():
+            print(name)
             user = self._users[name]
             if isinstance(user, LDAPUser):
                 # noinspection PyProtectedMember
                 data[name] = {
                     "type": LDAPUser.USER_TYPE,
-                    "password": None,  # password field has to exist because of how FilebasedUserManager processes
-                    # data, but an empty password hash cannot match any entered password (as
-                    # whatever the user enters will be hashed... even an empty password.
-                    "dn": user.get_distinguished_name(),
-                    "groups": user.get_groups(),
-                    "active": user.is_active(),
-                    "roles": user.roles,
+                    "password": None,
+                    "active": user._active,
+                    "groups": self._from_groups(*user._groups),
+                    "permissions": self._from_permissions(*user._permissions),
                     "apikey": user._apikey,
-                    "settings": user.get_all_settings()
-                }
-            else:
-                # noinspection PyProtectedMember
-                data[name] = {
-                    "password": user._passwordHash,
-                    "active": user.is_active(),
-                    "roles": user.roles,
-                    "apikey": user._apikey,
-                    "settings": user.get_all_settings()
+                    "settings": user._settings,
+                    "dn": user.get_distinguished_name()
                 }
 
-        with atomic_write(self._userfile, "wb", permissions=0o600, max_permissions=0o666) as f:
-            yaml.safe_dump(data, f, default_flow_style=False, indent="    ", allow_unicode=True)
+            else:
+                data[name] = {
+                    "password": user._passwordHash,
+                    "active": user._active,
+                    "groups": self._from_groups(*user._groups),
+                    "permissions": self._from_permissions(*user._permissions),
+                    "apikey": user._apikey,
+                    "settings": user._settings,
+
+                    # TODO: deprecated, remove in 1.5.0
+                    "roles": user._roles
+                }
+
+        with atomic_write(self._userfile, mode='wt', permissions=0o600, max_permissions=0o666) as f:
+            yaml.safe_dump(data, f, default_flow_style=False, indent=4, allow_unicode=True)
             self._dirty = False
         self._load()
 
@@ -411,6 +440,6 @@ def __plugin_load__():
 
     global __plugin_hooks__
     __plugin_hooks__ = {
-        "octoprint.users.factory": __plugin_implementation__.ldap_user_factory,
+        "octoprint.access.users.factory": __plugin_implementation__.ldap_user_factory,
         "octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information
     }
