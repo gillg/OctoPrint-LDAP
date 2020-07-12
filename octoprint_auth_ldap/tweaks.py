@@ -13,17 +13,25 @@ class SettingsPlugin(OctoPrintSettingPlugin):
         return self._settings
 
     @property
+    def identifier(self) -> str:
+        return self._identifier
+
+    @property
     def logger(self) -> Logger:
         if "_logger" in self.__dict__:
             return self._logger
         else:
-            # FIXME vexingly, sometimes we want to log through the plugin before the logger is injected
+            # FIXME vexingly, sometimes we want to log things before the logger is injected
             return logging.getLogger("octoprint.plugins.auth_ldap")
 
 
 class DependentOnSettingsPlugin:
     def __init__(self, plugin: SettingsPlugin):
         self._plugin = plugin
+
+    @property
+    def plugin(self):
+        return self._plugin
 
     @property
     def logger(self) -> Logger:

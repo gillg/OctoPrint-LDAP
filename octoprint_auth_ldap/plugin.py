@@ -1,22 +1,24 @@
 # coding=utf-8
 from __future__ import absolute_import
 
-from octoprint.plugin import TemplatePlugin
+from octoprint.plugin import TemplatePlugin, RestartNeedingPlugin
 from octoprint.settings import settings
+from octoprint_auth_ldap.constants import DEFAULT_ADMIN_GROUP, DEFAULT_USER_GROUP, OU_FILTER, OU_MEMBER_FILTER, OU, \
+    REQUEST_TLS_CERT, SEARCH_BASE, URI
 from octoprint_auth_ldap.ldap import LDAPConnection
 from octoprint_auth_ldap.tweaks import SettingsPlugin
-from octoprint_auth_ldap.users import LDAPUserManager
+from octoprint_auth_ldap.user_manager import LDAPUserManager
 
 
-class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
-
-    # noinspection PyShadowingNames
+class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin, RestartNeedingPlugin):
+    # noinspection PyUnusedLocal,PyShadowingNames
     def ldap_user_factory(self, components, settings):
-        return LDAPUserManager(plugin=self, ldap=LDAPConnection(plugin=self))
+        self._user_manager = LDAPUserManager(plugin=self, ldap=LDAPConnection(plugin=self))
+        return self._user_manager
 
     # Softwareupdate hook
 
-    def get_update_information(self):
+    def check_config(self):
         return dict(
             auth_ldap=dict(
                 displayName=self._plugin_name,
@@ -41,15 +43,17 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
             auth_user=None,
             default_admin_group=False,
             default_user_group=True,
-            ldap_group_filter="ou=%s",
-            ldap_group_member_filter="uniqueMember=%s",
-            ldap_groups=None,
+            ou_filter="ou=%s",
+            ou_member_filter="uniqueMember=%s",
+            ou=None,
             local_cache=False,
             request_tls_cert=None,
             search_base=None,
             search_filter="uid=%s",
             search_term_transform=None,
-            uri=None
+            uri=None,
+            userid_field=None,
+            userid_pattern=None
         )
 
     def get_settings_restricted_paths(self):
@@ -77,9 +81,9 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
 
         # migrate old settings to new locations and erase old settings
         prev_settings = dict(  # prev_setting_name="new_setting_name"
-            ldap_uri="uri",
-            ldap_tls_reqcert="request_tls_cert",
-            ldap_search_base="search_base",
+            ldap_uri=URI,
+            ldap_tls_reqcert=REQUEST_TLS_CERT,
+            ldap_search_base=SEARCH_BASE,
             ldap_groups="groups"
         )
         for prev_key, key in prev_settings.items():
@@ -102,11 +106,11 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin):
 
         # migrate old settings to new locations and erase old settings
         prev_settings = dict(  # prev_setting_name="new_setting_name"
-            default_role_admin="default_admin_group",
-            default_role_user="default_user_group",
-            group_filter="ldap_group_filter",
-            group_member_filter="ldap_group_member_filter",
-            groups="ldap_groups"
+            default_role_admin=DEFAULT_ADMIN_GROUP,
+            default_role_user=DEFAULT_USER_GROUP,
+            group_filter=OU_FILTER,
+            group_member_filter=OU_MEMBER_FILTER,
+            groups=OU
         )
         for prev_key, key in prev_settings.items():
             prev_value = self.settings.get([prev_key])

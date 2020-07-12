@@ -4,6 +4,9 @@ from __future__ import absolute_import
 import json
 
 import ldap
+import octoprint_auth_ldap.constants
+from octoprint_auth_ldap.constants import AUTH_PASSWORD, DISTINGUISHED_NAME, OU, OU_FILTER, OU_MEMBER_FILTER, \
+    REQUEST_TLS_CERT, SEARCH_BASE
 from octoprint_auth_ldap.tweaks import DependentOnSettingsPlugin, SettingsPlugin
 
 
@@ -12,19 +15,19 @@ class LDAPConnection(DependentOnSettingsPlugin):
         DependentOnSettingsPlugin.__init__(self, plugin)
 
     def get_client(self, user=None, password=None):
-        uri = self.settings.get(["uri"])
+        uri = self.settings.get([octoprint_auth_ldap.constants.URI])
         if not uri:
             self.logger.debug("No LDAP URI")
             return None
 
         if not user:
-            user = self.settings.get(["auth_user"])
-            password = self.settings.get(["auth_password"])
+            user = self.settings.get([octoprint_auth_ldap.constants.AUTH_USER])
+            password = self.settings.get([AUTH_PASSWORD])
 
         try:
             self.logger.debug("Initializing LDAP connection to %s" % uri)
             client = ldap.initialize(uri)
-            if self.settings.get(["request_tls_cert"]):
+            if self.settings.get([REQUEST_TLS_CERT]):
                 self.logger.debug("Requesting TLS certificate")
                 client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_DEMAND)
             else:
@@ -41,11 +44,11 @@ class LDAPConnection(DependentOnSettingsPlugin):
 
     def search(self, ldap_filter, base=None, scope=ldap.SCOPE_SUBTREE):
         if not base:
-            base = self.settings.get(["search_base"])
+            base = self.settings.get([SEARCH_BASE])
         try:
             client = self.get_client()
             if client is not None:
-                self.logger.debug("Searching LDAP, base: %s and filter: %s" % (base, ldap_filter))
+                # self.logger.debug("Searching LDAP, base: %s and filter: %s" % (base, ldap_filter))
                 result = client.search_s(base, scope, ldap_filter)
                 client.unbind_s()
                 if result:
@@ -60,6 +63,25 @@ class LDAPConnection(DependentOnSettingsPlugin):
         except ldap.LDAPError as e:
             self.logger.error(json.dumps(e))
         return None
+
+    def get_ou_memberships_for(self, dn):
+        memberships = []
+
+        ou_common_names = self.settings.get([OU])
+        if ou_common_names is None:
+            return False
+
+        ou_filter = self.settings.get([OU_FILTER])
+        ou_member_filter = self.settings.get([OU_MEMBER_FILTER])
+        for ou_common_name in str(ou_common_names).split(","):
+            result = self.search("(&" +
+                                 "(" + ou_filter % ou_common_name.strip() + ")" +
+                                 "(" + (ou_member_filter % dn) + ")" +
+                                 ")")
+            if result is not None:
+                self.logger.debug("%s is a member of %s" % (dn, result[DISTINGUISHED_NAME]))
+                memberships.append(ou_common_name)
+        return memberships
 
 
 class DependentOnLDAPConnection:

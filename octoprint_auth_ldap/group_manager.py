@@ -8,54 +8,64 @@ import yaml
 from octoprint.access.groups import FilebasedGroupManager, Group, GroupAlreadyExists
 from octoprint.access.permissions import Permissions, OctoPrintPermission
 from octoprint.util import atomic_write
+from octoprint_auth_ldap.constants import OU, OU_FILTER, DISTINGUISHED_NAME, LDAP_PARENT_GROUP_NAME, \
+    LDAP_PARENT_GROUP_DESCRIPTION, LDAP_PARENT_GROUP_KEY, LDAP_GROUP_KEY_PREFIX
+from octoprint_auth_ldap.group import LDAPGroup
 from octoprint_auth_ldap.ldap import LDAPConnection, DependentOnLDAPConnection
 from octoprint_auth_ldap.tweaks import SettingsPlugin, DependentOnSettingsPlugin
+from octoprint_auth_ldap.user import LDAPUser
 
 
-class LDAPGroup(Group):
-    GROUP_TYPE = "LDAP"
-
-    def __init__(
-            self,
-            key,
-            name,
-            description="",
-            permissions=None,
-            subgroups=None,
-            default=False,
-            removable=True,
-            changeable=True,
-            toggleable=True,
-            dn=None
-    ):
-        Group.__init__(
-            self,
-            key=key,
-            name=name,
-            description=description,
-            permissions=permissions,
-            subgroups=subgroups,
-            default=default,
-            removable=removable,
-            changeable=changeable,
-            toggleable=toggleable
-        )
-        # TODO throw error on missing/invalid dn?
-        self.distinguished_name = dn
-
-
-# TODO map LDAP groups on to OctoPrint groups?
 class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, DependentOnLDAPConnection):
+
     def __init__(self, plugin: SettingsPlugin, ldap: LDAPConnection, path=None):
         DependentOnSettingsPlugin.__init__(self, plugin)
         DependentOnLDAPConnection.__init__(self, ldap)
         FilebasedGroupManager.__init__(self, path)
+        try:
+            self.add_group(
+                key=LDAP_PARENT_GROUP_KEY,
+                name=LDAP_PARENT_GROUP_NAME,
+                description=LDAP_PARENT_GROUP_DESCRIPTION,
+                permissions=[],
+                subgroups=[],
+                overwrite=False
+            )
+        except GroupAlreadyExists:
+            assert True
 
-    def add_group(self, key, name, description, permissions, subgroups, default=False, removable=True,
-                  changeable=True, toggleable=True, overwrite=False, notify=True, save=True, dn=None):
+    def add_group(
+            self,
+            key,
+            name,
+            description,
+            permissions,
+            subgroups,
+            default=False,
+            removable=True,
+            changeable=True,
+            toggleable=True,
+            overwrite=False,
+            notify=True,
+            save=True,
+            dn=None
+    ):
         if dn is None:
-            return FilebasedGroupManager.add_group(self, key, name, description, permissions, subgroups, default,
-                                                   removable, changeable, toggleable, overwrite, notify, save)
+            FilebasedGroupManager.add_group(
+                self,
+                key=key,
+                name=name,
+                description=description,
+                permissions=permissions,
+                subgroups=subgroups,
+                default=default,
+                removable=False if key == LDAP_PARENT_GROUP_KEY else removable,
+                changeable=True if key == LDAP_PARENT_GROUP_KEY else changeable,
+                toggleable=toggleable,
+                overwrite=overwrite,
+                notify=notify,
+                save=save
+            )
         else:
             if key in self._groups and not overwrite:
                 raise GroupAlreadyExists(key)
@@ -70,18 +80,18 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
             assert (all(map(lambda g: isinstance(g, Group), subgroups)))
 
             group = LDAPGroup(
-                key,
-                name,
+                key=key,
+                name=name,
                 description=description,
                 permissions=permissions,
                 subgroups=subgroups,
                 default=default,
                 changeable=True,
                 removable=False,
-                toggleable=False,
-                dn=dn,
+                dn=dn
             )
             self._groups[key] = group
+            self.logger.debug("Added group %s as %s" % (name, LDAPGroup.__name__))
 
             if save:
                 self._dirty = True
@@ -90,28 +100,48 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
             if notify:
                 self._notify_listeners("added", group)
 
-    def sync_with_ldap(self):
-        # TODO remove de-configured groups
-        # TODO make all LDAP synced groups subgroups of LDAP super-group
-        # TODO synced group key-naming scheme "LDAP:dn"?
-        ldap_groups_from_settings = [group.strip() for group in str(self.settings.get(["ldap_groups"])).split(",")]
-        ldap_type_groups = [group.get_name() for group in self._groups.values() if isinstance(group, LDAPGroup)]
-        ldap_group_filter = self.settings.get(["ldap_group_filter"])
-        self.logger.debug("settings=%s, groups=%s, diff=%s" % (
-        ldap_groups_from_settings, ldap_type_groups, list(set(ldap_groups_from_settings) - set(ldap_type_groups))))
-        for ldap_group in list(set(ldap_groups_from_settings) - set(ldap_type_groups)):
-            result = self.ldap.search("(" + ldap_group_filter % ldap_group.strip() + ")")
-            self.add_group(
-                key=result["dn"],
-                name=ldap_group,
-                dn=result["dn"],
-                description="Synced LDAP Group",
-                permissions=[],
-                subgroups=[],
-                toggleable=False,
-                removable=False,
-                save=self.settings.get(["local_cache"])
-            )
+    def _to_group_key(self, ou_common_name: str) -> str:
+        return "%s%s" % (LDAP_GROUP_KEY_PREFIX, ou_common_name.strip().lower())
+
+    def _refresh_ldap_groups(self):
+        self.logger.info("Syncing LDAP groups to local groups based on %s settings" % self.plugin.identifier)
+
+        organizational_units = [group.strip() for group in str(self.settings.get([OU])).split(",")]
+        ldap_groups = [group.get_name() for group in self._groups.values() if isinstance(group, LDAPGroup)]
+        ou_filter = self.settings.get([OU_FILTER])
+
+        for ou_common_name in list(set(organizational_units) - set(ldap_groups)):
+            key = self._to_group_key(ou_common_name)
+            this_group = self.find_group(key)
+            if this_group is None:
+                result = self.ldap.search("(" + ou_filter % ou_common_name.strip() + ")")
+                self.add_group(
+                    key=key,
+                    name=ou_common_name,
+                    dn=result[DISTINGUISHED_NAME],
+                    description="Synced LDAP Group",
+                    permissions=[],
+                    subgroups=[],
+                    toggleable=True,
+                    removable=False,
+                    changeable=True,
+                    save=False
+                )
+
+        self.update_group(
+            LDAP_PARENT_GROUP_KEY,
+            subgroups=[group for group in self._groups.values() if isinstance(group, LDAPGroup)],
+            save=True
+        )
+
+    def get_ldap_groups_for(self, dn):
+        if isinstance(dn, LDAPUser):
+            dn = dn.distinguished_name
+        self._refresh_ldap_groups()
+        memberships = self.ldap.get_ou_memberships_for(dn)
+        if memberships is False:
+            return []
+        return list(map(lambda g: self._to_group_key(g), memberships))
 
     def _load(self):
         if os.path.exists(self._groupfile) and os.path.isfile(self._groupfile):
@@ -152,19 +182,21 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
                     group_type = attributes.get("type", False)
 
                     if group_type == LDAPGroup.GROUP_TYPE:
+                        self.logger.debug("Loading group %s as %s" % (attributes.get("name", key), LDAPGroup.__name__))
                         group = LDAPGroup(
                             key,
-                            attributes.get("name", ""),
+                            attributes.get("name", key),
                             description=attributes.get("description", ""),
                             permissions=permissions,
                             subgroups=subgroups,
                             default=attributes.get("default", False),
-                            removable=removable,
+                            removable=False,
                             changeable=changeable,
                             toggleable=toggleable,
-                            dn=attributes.get("dn", None)
+                            dn=attributes.get(DISTINGUISHED_NAME, None)
                         )
                     else:
+                        self.logger.debug("Loading group %s as %s" % (attributes.get("name", key), Group.__name__))
                         group = Group(key, attributes.get("name", ""),
                                       description=attributes.get("description", ""),
                                       permissions=permissions,
@@ -192,17 +224,19 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
                 continue
 
             if isinstance(group, LDAPGroup):
+                self.logger.debug("Saving group %s as %s" % (group.get_name(), LDAPGroup.__name__))
                 groups[key] = dict(
                     type=LDAPGroup.GROUP_TYPE,
                     dn=group.distinguished_name,
 
-                    name=group._name,
-                    description=group._description,
-                    permissions=self._from_permissions(*group._permissions),
-                    subgroups=self._from_groups(*group._subgroups),
-                    default=group._default
+                    name=group.get_name(),
+                    description=group.get_description(),
+                    permissions=self._from_permissions(*group.permissions),
+                    subgroups=self._from_groups(*group.subgroups),
+                    default=group.is_default()
                 )
             else:
+                self.logger.debug("Saving group %s as %s" % (group.get_name(), Group.__name__))
                 groups[key] = dict(
                     name=group._name,
                     description=group._description,

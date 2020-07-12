@@ -8,45 +8,12 @@ import yaml
 from ldap.filter import filter_format
 from octoprint.access.users import FilebasedUserManager, User, UserAlreadyExists
 from octoprint.util import atomic_write
-from octoprint_auth_ldap.groups import LDAPGroupManager
+from octoprint_auth_ldap.constants import LOCAL_CACHE, SEARCH_FILTER, SEARCH_TERM_TRANSFORM, DISTINGUISHED_NAME, OU
+from octoprint_auth_ldap.group import LDAPGroup
+from octoprint_auth_ldap.group_manager import LDAPGroupManager
 from octoprint_auth_ldap.ldap import LDAPConnection, DependentOnLDAPConnection
 from octoprint_auth_ldap.tweaks import DependentOnSettingsPlugin
-
-
-class LDAPUser(User):
-    USER_TYPE = "LDAP"
-
-    # noinspection PyShadowingNames
-    def __init__(
-            self,
-            username,
-            active=True,
-            permissions=None,
-            groups=None,
-            apikey=None,
-            settings=None,
-            dn=None
-    ):
-        User.__init__(
-            self,
-            username=username,
-            passwordHash=None,
-            active=active,
-            permissions=permissions,
-            groups=groups,
-            apikey=apikey,
-            settings=settings
-        )
-        self.distinguished_name = dn
-
-    @property
-    def distinguished_name(self):
-        return self._distinguished_name
-
-    @distinguished_name.setter
-    def distinguished_name(self, dn):
-        # TODO throw error on missing/invalid dn?
-        self._distinguished_name = dn
+from octoprint_auth_ldap.user import LDAPUser
 
 
 class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, DependentOnLDAPConnection):
@@ -64,7 +31,7 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
         self.logger.debug("Search for userid=%s, apiKey=%s, session=%s" % (userid, apikey, session))
         user = FilebasedUserManager.find_user(self, userid=userid, apikey=apikey, session=session)
 
-        transformation = self.settings.get(["search_term_transform"])
+        transformation = self.settings.get([SEARCH_TERM_TRANSFORM])
         if not user and userid and transformation:
             self.logger.debug("Transforming %s using %s" % (userid, transformation))
             transformed = getattr(str, transformation)(str(userid))
@@ -75,8 +42,9 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
 
         if not user and userid:
             self.logger.debug("User %s not found locally, treating as LDAP" % userid)
-            search_filter = self.settings.get(["search_filter"])
-            self.group_manager.sync_with_ldap()
+            search_filter = self.settings.get([SEARCH_FILTER])
+
+            self.group_manager._refresh_ldap_groups()
 
             """
             operating on the wildly unsafe assumption that the admin who configures this plugin will have their head
@@ -86,15 +54,14 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
             ldap_user = self.ldap.search(filter_format(search_filter, (userid,)))
 
             if ldap_user is not None:
-                self.logger.debug("User %s found as dn=%s" % (userid, ldap_user["dn"]))
-                groups = self.ldap_group_filter(ldap_user["dn"])
+                self.logger.debug("User %s found as dn=%s" % (userid, ldap_user[DISTINGUISHED_NAME]))
+                groups = self._group_manager.get_ldap_groups_for(ldap_user[DISTINGUISHED_NAME])
                 if isinstance(groups, list):
                     self.logger.debug("Creating new LDAPUser %s" % userid)
-                    # TODO: make username configurable or make dn configurable (e.g. could be userPrincipalName?)
-                    if self.settings.get(["local_cache"]):
+                    if self.settings.get([LOCAL_CACHE]):
                         self.add_user(
                             username=userid,
-                            dn=ldap_user["dn"],
+                            dn=ldap_user[DISTINGUISHED_NAME],
                             groups=groups,
                             active=True
                         )
@@ -102,37 +69,11 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
                     else:
                         user = LDAPUser(
                             username=userid,
-                            dn=ldap_user["dn"],
+                            dn=ldap_user[DISTINGUISHED_NAME],
                             groups=groups,
                             active=True
                         )
         return user
-
-    """
-    this will return either an empty list (i.e. []) (if no groups are specified in configuration) or a list of groups
-    that the user is currently a member of (e.g. ["Lab Users"]), or False if the groups filter is configured and the
-    user is not a member of any configured groups
-    """
-
-    def ldap_group_filter(self, dn):
-        ldap_groups = self.settings.get(["ldap_groups"])
-        self.logger.debug("Filtering %s against %s" % (dn, ldap_groups))
-        actual_ldap_groups = []
-        if ldap_groups:
-            ldap_group_filter = self.settings.get(["ldap_group_filter"])
-            ldap_group_member_filter = self.settings.get(["ldap_group_member_filter"])
-            for ldap_group in str(ldap_groups).split(","):
-                result = self.ldap.search("(&" +
-                                          "(" + ldap_group_filter % ldap_group.strip() + ")" +
-                                          "(" + (ldap_group_member_filter % dn) + ")" +
-                                          ")")
-                self.logger.debug("Found %s" % result)
-                if result is not None:
-                    actual_ldap_groups.append(ldap_group)
-            if not actual_ldap_groups:
-                self.logger.debug("%s is not a member of configured LDAP groups" % dn)
-                return False
-        return actual_ldap_groups
 
     def add_user(self,
                  username,
@@ -178,22 +119,36 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
             self._save()
 
     def check_password(self, username, password):
-        user = self.findUser(userid=username)
-        self.logger.debug("%s is a %s" % (username, type(user)))
+        user = self.find_user(userid=username)
         if isinstance(user, LDAPUser):
             # in case group settings changed either in auth_ldap settings OR on LDAP directory
-            groups = self.ldap_group_filter(user.distinguished_name)
-            if user.is_active and isinstance(groups, list):
-                self.change_user_groups(user.get_name(), groups)
-                self.logger.debug("Checking %s password via LDAP" % user.get_name())
+            if user.is_active and (
+                    self.settings.get([OU]) is None or
+                    len(self.refresh_ldap_group_memberships_for(user)) > 0
+            ):
+                self.logger.debug("Checking %s password via LDAP" % user.get_id())
                 client = self.ldap.get_client(user.distinguished_name, password)
-                return client is not None
+                authenticated = client is not None
+                self.logger.debug("%s was %sauthenticated" % (user.get_name(), "" if authenticated else "not "))
+                return authenticated
             else:
-                self.logger.debug("%s is inactive or no longer a member of required groups" % user.get_name())
+                self.logger.debug("%s is inactive or no longer a member of required groups" % user.get_id())
         else:
             self.logger.debug("Checking %s password via users.yaml" % user.get_name())
             return FilebasedUserManager.check_password(self, user.get_name(), password)
         return False
+
+    def refresh_ldap_group_memberships_for(self, user):
+        current_groups = self.group_manager.get_ldap_groups_for(user)
+        cached_groups = list(filter(lambda g: isinstance(g, LDAPGroup), user.groups))
+        self.remove_groups_from_user(user.get_id(), list(set(cached_groups) - set(current_groups)))
+        self.add_groups_to_user(user.get_id(), list(set(current_groups) - set(cached_groups)))
+        self.logger.debug("%s is currently a member of %s" % (user.get_id(), current_groups))
+        return current_groups
+
+    def refresh_ldap_group_memberships(self):
+        for user in filter(lambda u: isinstance(u, LDAPUser), self.get_all_users()):
+            self.refresh_ldap_group_memberships_for(user)
 
     def _load(self):
         if os.path.exists(self._userfile) and os.path.isfile(self._userfile):
@@ -238,7 +193,7 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
                             active=attributes["active"],
                             permissions=permissions,
                             groups=groups,
-                            dn=attributes["dn"],
+                            dn=attributes[DISTINGUISHED_NAME],
                             apikey=apikey,
                             settings=user_settings
                         )
@@ -277,7 +232,7 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
                 self.logger.debug('Saving %s as %s' % (name, LDAPUser.__name__))
                 data[name] = {
                     "type": LDAPUser.USER_TYPE,
-                    "dn": user.distinguished_name,
+                    DISTINGUISHED_NAME: user.distinguished_name,
 
                     # password field has to exist because of how FilebasedUserManager processes
                     # data, but an empty password hash cannot match any entered password (as
