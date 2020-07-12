@@ -1,7 +1,9 @@
 # coding=utf-8
 
+from setuptools import setup
+
 ########################################################################################################################
-### Do not forget to adjust the following variables to your own plugin.
+# Do not forget to adjust the following variables to your own plugin.
 
 # The plugin's identifier, has to be unique
 plugin_identifier = "auth_ldap"
@@ -14,7 +16,7 @@ plugin_package = "octoprint_%s" % plugin_identifier
 plugin_name = "Auth LDAP"
 
 # The plugin's version. Can be overwritten within OctoPrint's internal data via __plugin_version__ in the plugin module
-plugin_version = "1.0.1"
+plugin_version = "1.1.0"
 
 # The plugin's description. Can be overwritten within OctoPrint's internal data via __plugin_description__ in the plugin
 # module
@@ -40,8 +42,6 @@ plugin_requires = ["python-ldap"]
 plugin_additional_data = []
 
 ########################################################################################################################
-
-from setuptools import setup
 
 try:
     import octoprint_setuptools

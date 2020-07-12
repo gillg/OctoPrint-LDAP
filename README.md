@@ -23,13 +23,13 @@ apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
 You can install this via the OctoPrint plugin manager GUI using this URL:
 
 ```
-https://github.com/paukstelis/OctoPrint-LDAP/archive/master.zip
+https://github.com/gillg/OctoPrint-LDAP/archive/master.zip
 ```
 
 The plugin may also be installed within the oprint venv using the command
 
 ```bash
-pip install https://github.com/paukstelis/OctoPrint-LDAP/archive/master.zip
+pip install https://github.com/gillg/OctoPrint-LDAP/archive/master.zip
 ```
 
 #### General Configuration
@@ -43,7 +43,7 @@ plugins:
     auth_user: example\authuser
     auth_password: s00p3rS3KRE7
     search_base: dc=example,dc=com
-    groups: Lab Users, Lab Staff
+    ldap_groups: Lab Users, Lab Staff
 ```
 
 #### Details
@@ -87,11 +87,11 @@ example_user:
   active: true
   apikey: null
   dn: cn=Example user,dc=example,dc=com
-  groups:
+  ldap_groups:
   - Lab Users
   password: null
-  roles:
-  - user
+  groups:
+  - users
   settings: {}
   type: LDAP
 ```
@@ -137,8 +137,8 @@ Membership in LDAP groups is verified by searching for a group with a particular
 ```YAML
 plugins:
   auth_ldap:
-    group_filter: cn=%s
-    group_member_filter: uniqueMember=%s
+    ldap_group_filter: cn=%s
+    ldap_group_member_filter: uniqueMember=%s
 ```
 
 This configuration would generate a search filter that would test against each provided group name in turn, using the user's LDAP-provided DN: `"(&(cn=%s)(uniqueMember=%s))" % (group_name, dn)`, which would end up looking like `(&(cn=Lab Users)(uniqueMember=uid=example_user,dc=example.dc=com))`
