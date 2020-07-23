@@ -1,10 +1,9 @@
 # coding=utf-8
 from __future__ import absolute_import
 
-from octoprint_auth_ldap.constants import PLUGIN_NAME
 from octoprint_auth_ldap.plugin import AuthLDAPPlugin
 
-__plugin_name__ = PLUGIN_NAME
+__plugin_name__ = "Auth LDAP"
 __plugin_pythoncompat__ = ">=3,<4"
 
 
