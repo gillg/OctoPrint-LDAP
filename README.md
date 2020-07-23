@@ -1,6 +1,8 @@
 # OctoPrint Auth LDAP Plugin
 ---
 
+[![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/battis/OctoPrint-LDAP/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/battis/OctoPrint-LDAP/?branch=master)
+
 #### Prerequisites
 
 Before installing this plugin, consult [the python-ldap documentation for its build prerequisites on your system](https://www.python-ldap.org/en/python-ldap-3.3.0/installing.html#build-prerequisites) or [instructions for installing pre-built binaries on your system](https://www.python-ldap.org/en/python-ldap-3.3.0/installing.html#pre-built-binaries). For example, on Debian-based systems (such as Raspbian), it is necessary to preinstall a collection of supporting libraries in order for python-ldap to install properly:
