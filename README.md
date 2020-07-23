@@ -5,7 +5,7 @@ This plugin authenticates users against an LDAP server in addition to the local 
 
 #### Prerequisites
 
-Before installing this plugin, consult [the python-ldap documentation for its build prerequisites on your system](https://github.com/gillg/OctoPrint-LDAP/archive/master.zip). For example, on Debian-based systems (such as Raspbian), it is necessary to preinstall a collection of supporting libraries in order for python-ldap to install properly:
+Before installing this plugin, consult [the python-ldap documentation for its build prerequisites on your system](https://www.python-ldap.org/en/python-ldap-3.3.0/installing.html#build-prerequisites) or [instructions for installing pre-built binaries on your system](https://www.python-ldap.org/en/python-ldap-3.3.0/installing.html#pre-built-binaries). For example, on Debian-based systems (such as Raspbian), it is necessary to preinstall a collection of supporting libraries in order for python-ldap to install properly:
 
 ```bash
 apt-get install build-essential python3-dev python2.7-dev libldap2-dev \

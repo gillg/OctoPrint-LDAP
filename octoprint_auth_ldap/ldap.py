@@ -4,9 +4,8 @@ from __future__ import absolute_import
 import json
 
 import ldap
-import octoprint_auth_ldap.constants
-from octoprint_auth_ldap.constants import AUTH_PASSWORD, DISTINGUISHED_NAME, OU, OU_FILTER, OU_MEMBER_FILTER, \
-    REQUEST_TLS_CERT, SEARCH_BASE
+from octoprint_auth_ldap.constants import AUTH_PASSWORD, AUTH_USER, DISTINGUISHED_NAME, OU, OU_FILTER, OU_MEMBER_FILTER, \
+    REQUEST_TLS_CERT, SEARCH_BASE, URI
 from octoprint_auth_ldap.tweaks import DependentOnSettingsPlugin, SettingsPlugin
 
 
@@ -15,13 +14,13 @@ class LDAPConnection(DependentOnSettingsPlugin):
         DependentOnSettingsPlugin.__init__(self, plugin)
 
     def get_client(self, user=None, password=None):
-        uri = self.settings.get([octoprint_auth_ldap.constants.URI])
+        uri = self.settings.get([URI])
         if not uri:
             self.logger.debug("No LDAP URI")
             return None
 
         if not user:
-            user = self.settings.get([octoprint_auth_ldap.constants.AUTH_USER])
+            user = self.settings.get([AUTH_USER])
             password = self.settings.get([AUTH_PASSWORD])
 
         try:
