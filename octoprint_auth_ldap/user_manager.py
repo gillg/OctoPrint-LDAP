@@ -30,7 +30,44 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
     def find_user(self, userid=None, apikey=None, session=None):
         self.logger.debug("Search for userid=%s, apiKey=%s, session=%s" % (userid, apikey, session))
         user = FilebasedUserManager.find_user(self, userid=userid, apikey=apikey, session=session)
+        user, userid = self._find_user_with_transformation(apikey, session, user, userid)
+        if not user and userid:
+            user = self._find_user_via_ldap(user, userid)
+        return user
 
+    def _find_user_via_ldap(self, user, userid):
+        self.logger.debug("User %s not found locally, treating as LDAP" % userid)
+        search_filter = self.settings.get([SEARCH_FILTER])
+        self.group_manager._refresh_ldap_groups()
+        """
+                operating on the wildly unsafe assumption that the admin who configures this plugin will have their head
+                screwed on right and we are NOT escaping their search strings... only escaping unsafe user-entered text that
+                is passed directly to search filters
+                """
+        ldap_user = self.ldap.search(filter_format(search_filter, (userid,)))
+        if ldap_user is not None:
+            self.logger.debug("User %s found as dn=%s" % (userid, ldap_user[DISTINGUISHED_NAME]))
+            groups = self._group_manager.get_ldap_groups_for(ldap_user[DISTINGUISHED_NAME])
+            if isinstance(groups, list):
+                self.logger.debug("Creating new LDAPUser %s" % userid)
+                if self.settings.get([LOCAL_CACHE]):
+                    self.add_user(
+                        username=userid,
+                        dn=ldap_user[DISTINGUISHED_NAME],
+                        groups=groups,
+                        active=True
+                    )
+                    user = self._users[userid]
+                else:
+                    user = LDAPUser(
+                        username=userid,
+                        dn=ldap_user[DISTINGUISHED_NAME],
+                        groups=groups,
+                        active=True
+                    )
+        return user
+
+    def _find_user_with_transformation(self, apikey, session, user, userid):
         transformation = self.settings.get([SEARCH_TERM_TRANSFORM])
         if not user and userid and transformation:
             self.logger.debug("Transforming %s using %s" % (userid, transformation))
@@ -39,41 +76,7 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
             if transformed != userid:
                 userid = transformed
                 user = FilebasedUserManager.find_user(self, userid=userid, apikey=apikey, session=session)
-
-        if not user and userid:
-            self.logger.debug("User %s not found locally, treating as LDAP" % userid)
-            search_filter = self.settings.get([SEARCH_FILTER])
-
-            self.group_manager._refresh_ldap_groups()
-
-            """
-            operating on the wildly unsafe assumption that the admin who configures this plugin will have their head
-            screwed on right and we are NOT escaping their search strings... only escaping unsafe user-entered text that
-            is passed directly to search filters
-            """
-            ldap_user = self.ldap.search(filter_format(search_filter, (userid,)))
-
-            if ldap_user is not None:
-                self.logger.debug("User %s found as dn=%s" % (userid, ldap_user[DISTINGUISHED_NAME]))
-                groups = self._group_manager.get_ldap_groups_for(ldap_user[DISTINGUISHED_NAME])
-                if isinstance(groups, list):
-                    self.logger.debug("Creating new LDAPUser %s" % userid)
-                    if self.settings.get([LOCAL_CACHE]):
-                        self.add_user(
-                            username=userid,
-                            dn=ldap_user[DISTINGUISHED_NAME],
-                            groups=groups,
-                            active=True
-                        )
-                        user = self._users[userid]
-                    else:
-                        user = LDAPUser(
-                            username=userid,
-                            dn=ldap_user[DISTINGUISHED_NAME],
-                            groups=groups,
-                            active=True
-                        )
-        return user
+        return user, userid
 
     def add_user(self,
                  username,
@@ -150,24 +153,23 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
         for user in filter(lambda u: isinstance(u, LDAPUser), self.get_all_users()):
             self.refresh_ldap_group_memberships_for(user)
 
+    @staticmethod
+    def _default_load(attributes, key, default=None):
+        if key in attributes:
+            return attributes[key]
+        else:
+            return default
+
     def _load(self):
         if os.path.exists(self._userfile) and os.path.isfile(self._userfile):
             self._customized = True
             with io.open(self._userfile, 'rt', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
                 for name, attributes in data.items():
-                    permissions = []
-                    if "permissions" in attributes:
-                        permissions = attributes["permissions"]
-                    permissions = self._to_permissions(*permissions)
-
-                    groups = {self._group_manager.user_group}  # the user group is mandatory for all logged in users
-                    if "groups" in attributes:
-                        groups |= set(attributes["groups"])
-
-                    user_type = False
-                    if "type" in attributes:
-                        user_type = attributes["type"]
+                    permissions = self._to_permissions(self._default_load(attributes, "permissions", []))
+                    groups = self._default_load(attributes, "groups", {
+                        self._group_manager.user_group})  # the user group is mandatory for all logged in users
+                    user_type = self._default_load(attributes, "type", False)
 
                     # migrate from roles to permissions
                     if "roles" in attributes and "permissions" not in attributes:
@@ -178,13 +180,8 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
                     # because this plugin used to use the groups field, need to wait to make sure it's safe to do this
                     groups = self._to_groups(*groups)
 
-                    apikey = None
-                    if "apikey" in attributes:
-                        apikey = attributes["apikey"]
-
-                    user_settings = dict()
-                    if "settings" in attributes:
-                        user_settings = attributes["settings"]
+                    apikey = self._default_load(attributes, "apikey")
+                    user_settings = self._default_load(attributes, "settings", dict())
 
                     if user_type == LDAPUser.USER_TYPE:
                         self.logger.debug("Loading %s as %s" % (name, LDAPUser.__name__))
