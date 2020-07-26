@@ -102,8 +102,11 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
             try:
                 self.add_group(key=self.settings.get([LDAP_PARENT_GROUP_KEY]),
                                name=self.settings.get([LDAP_PARENT_GROUP_NAME]),
-                               description=self.settings.get([LDAP_PARENT_GROUP_DESCRIPTION]), permissions=[],
-                               subgroups=[], overwrite=False)
+                               description=self.settings.get([LDAP_PARENT_GROUP_DESCRIPTION]),
+                               permissions=[],
+                               subgroups=[],
+                               overwrite=False
+                               )
             except GroupAlreadyExists:
                 assert True
 
@@ -116,9 +119,17 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
                 this_group = self.find_group(key)
                 if this_group is None:
                     result = self.ldap.search("(" + ou_filter % ou_common_name.strip() + ")")
-                    self.add_group(key=key, name=ou_common_name, dn=result[DISTINGUISHED_NAME],
-                                   description="Synced LDAP Group", permissions=[], subgroups=[], toggleable=True,
-                                   removable=False, changeable=True, save=False)
+                    self.add_group(key=key,
+                                   name=ou_common_name,
+                                   dn=result[DISTINGUISHED_NAME],
+                                   description="Synced LDAP Group",
+                                   permissions=[],
+                                   subgroups=[],
+                                   toggleable=True,
+                                   removable=False,
+                                   changeable=True,
+                                   save=False
+                                   )
 
             self.update_group(
                 self.settings.get([LDAP_PARENT_GROUP_KEY]),
