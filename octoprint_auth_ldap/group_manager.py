@@ -25,20 +25,20 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
         FilebasedGroupManager.__init__(self, path)
 
     def add_group(
-            self,
-            key,
-            name,
-            description,
-            permissions,
-            subgroups,
-            default=False,
-            removable=True,
-            changeable=True,
-            toggleable=True,
-            overwrite=False,
-            notify=True,
-            save=True,
-            dn=None
+        self,
+        key,
+        name,
+        description,
+        permissions,
+        subgroups,
+        default=False,
+        removable=True,
+        changeable=True,
+        toggleable=True,
+        overwrite=False,
+        notify=True,
+        save=True,
+        dn=None
     ):
         if dn is None:
             FilebasedGroupManager.add_group(
@@ -92,7 +92,7 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
 
     def _to_group_key(self, ou_common_name: str) -> str:
         return "%s%s" % (
-        self.settings.get([LDAP_GROUP_KEY_PREFIX]), re.sub(r"\W+", "_", ou_common_name.strip().lower()))
+            self.settings.get([LDAP_GROUP_KEY_PREFIX]), re.sub(r"\W+", "_", ou_common_name.strip().lower()))
 
     def _refresh_ldap_groups(self):
         ou = self.settings.get([OU])
@@ -100,14 +100,10 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
             self.logger.info("Syncing LDAP groups to local groups based on %s settings" % self.plugin.identifier)
 
             try:
-                self.add_group(
-                    key=self.settings.get([LDAP_PARENT_GROUP_KEY]),
-                    name=self.settings.get([LDAP_PARENT_GROUP_NAME]),
-                    description=self.settings.get([LDAP_PARENT_GROUP_DESCRIPTION]),
-                    permissions=[],
-                    subgroups=[],
-                    overwrite=False
-                )
+                self.add_group(key=self.settings.get([LDAP_PARENT_GROUP_KEY]),
+                               name=self.settings.get([LDAP_PARENT_GROUP_NAME]),
+                               description=self.settings.get([LDAP_PARENT_GROUP_DESCRIPTION]), permissions=[],
+                               subgroups=[], overwrite=False)
             except GroupAlreadyExists:
                 assert True
 
@@ -120,18 +116,9 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
                 this_group = self.find_group(key)
                 if this_group is None:
                     result = self.ldap.search("(" + ou_filter % ou_common_name.strip() + ")")
-                    self.add_group(
-                        key=key,
-                        name=ou_common_name,
-                        dn=result[DISTINGUISHED_NAME],
-                        description="Synced LDAP Group",
-                        permissions=[],
-                        subgroups=[],
-                        toggleable=True,
-                        removable=False,
-                        changeable=True,
-                        save=False
-                    )
+                    self.add_group(key=key, name=ou_common_name, dn=result[DISTINGUISHED_NAME],
+                                   description="Synced LDAP Group", permissions=[], subgroups=[], toggleable=True,
+                                   removable=False, changeable=True, save=False)
 
             self.update_group(
                 self.settings.get([LDAP_PARENT_GROUP_KEY]),
@@ -179,7 +166,7 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
                     permissions = self._to_permissions(*attributes.get("permissions", []))
                     default_permissions = self.default_permissions_for_group(key)
                     for permission in default_permissions:
-                        if not permission.key in tracked_permissions and not permission in permissions:
+                        if permission.key not in tracked_permissions and permission not in permissions:
                             permissions.append(permission)
 
                     subgroups = attributes.get("subgroups", [])

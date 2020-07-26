@@ -126,8 +126,8 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
         if isinstance(user, LDAPUser):
             # in case group settings changed either in auth_ldap settings OR on LDAP directory
             if user.is_active and (
-                    self.settings.get([OU]) is None or
-                    len(self.refresh_ldap_group_memberships_for(user)) > 0
+                self.settings.get([OU]) is None or
+                len(self.refresh_ldap_group_memberships_for(user)) > 0
             ):
                 self.logger.debug("Checking %s password via LDAP" % user.get_id())
                 client = self.ldap.get_client(user.distinguished_name, password)
@@ -153,23 +153,17 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
         for user in filter(lambda u: isinstance(u, LDAPUser), self.get_all_users()):
             self.refresh_ldap_group_memberships_for(user)
 
-    @staticmethod
-    def _default_load(attributes, key, default=None):
-        if key in attributes:
-            return attributes[key]
-        else:
-            return default
-
     def _load(self):
         if os.path.exists(self._userfile) and os.path.isfile(self._userfile):
             self._customized = True
             with io.open(self._userfile, 'rt', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
                 for name, attributes in data.items():
-                    permissions = self._to_permissions(self._default_load(attributes, "permissions", []))
-                    groups = self._default_load(attributes, "groups", {
-                        self._group_manager.user_group})  # the user group is mandatory for all logged in users
-                    user_type = self._default_load(attributes, "type", False)
+                    permissions = self._to_permissions(*attributes.get("permissions", []))
+                    groups = attributes.get("groups", {
+                        self._group_manager.user_group  # the user group is mandatory for all logged in users
+                    })
+                    user_type = attributes.get("type", False)
 
                     # migrate from roles to permissions
                     if "roles" in attributes and "permissions" not in attributes:
@@ -180,8 +174,8 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
                     # because this plugin used to use the groups field, need to wait to make sure it's safe to do this
                     groups = self._to_groups(*groups)
 
-                    apikey = self._default_load(attributes, "apikey")
-                    user_settings = self._default_load(attributes, "settings", dict())
+                    apikey = attributes.get("apikey")
+                    user_settings = attributes.get("settings", dict())
 
                     if user_type == LDAPUser.USER_TYPE:
                         self.logger.debug("Loading %s as %s" % (name, LDAPUser.__name__))
