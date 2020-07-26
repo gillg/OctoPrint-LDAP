@@ -1,3 +1,11 @@
+checks:
+  python:
+    code_rating: true
+    duplicate_code: true
+    typecheck_maybe_no_member: true
+    classes_valid_slots: true
+    basic_missing_reversed_argument: true
+
 build:
   environment:
     python:
@@ -8,3 +16,12 @@ build:
       - libldap2-dev
       - libsasl2-dev
       - libssl-dev
+  nodes:
+    analysis:
+      project_setup:
+        override:
+          - 'true'
+      tests:
+        override:
+          - py-scrutinizer-run
+          - pylint-run

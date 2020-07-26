@@ -1,0 +1,5 @@
+[MESSAGES CONTROL]
+
+disable=
+
+enable=zip-builtin-not-iterating,xrange-builtin,using-cmp-argument,unpacking-in-except,unicode-builtin,unichr-builtin,sys-max-int,standarderror-builtin,setslice-method,round-builtin,reload-builtin,reduce-builtin,rdiv-method,raw-input-builtin,range-builtin-not-iterating,raising-string,print-statement,parameter-unpacking,old-raise-syntax,old-octal-literal,old-ne-operator,old-division,oct-method,nonzero-method,no-absolute-import,next-method-called,metaclass-assignment,map-builtin-not-iterating,long-suffix,long-builtin,invalid-str-codec,intern-builtin,input-builtin,indexing-exception,import-star-module-level,idiv-method,hex-method,getslice-method,filter-builtin-not-iterating,file-builtin,execfile-builtin,exception-message-attribute,eq-without-hash,div-method,dict-view-method,dict-iter-method,deprecated-string-function,deprecated-str-translate-call,delslice-method,coerce-method,coerce-builtin,cmp-method,cmp-builtin,buffer-builtin,basestring-builtin,bad-python3-import,backtick,apply-builtin
