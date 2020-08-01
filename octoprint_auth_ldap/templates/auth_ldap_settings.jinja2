@@ -1,31 +1,33 @@
-<form class="form-horizontal">
+<form id="plugin_auth_ldap_settings" class="form-horizontal">
 
     <h3>{{ _('Auth LDAP Settings') }}</h3>
 
     <ul class="nav nav-pills">
-        <li class="active"><a href="#server_connection" data-toggle="tab">{{ _('Server') }}</a></li>
-        <li><a href="#user_configuration" data-toggle="tab">{{ _('Users') }}</a></li>
-        <li><a href="#group_filtering" data-toggle="tab">{{ _('Groups') }}</a></li>
+        <li class="active"><a href="#plugin_auth_ldap_settings_server_connection"
+                              data-toggle="tab">{{ _('Server') }}</a></li>
+        <li><a href="#plugin_auth_ldap_settings_user_configuration" data-toggle="tab">{{ _('Users') }}</a></li>
+        <li><a href="#plugin_auth_ldap_settings_group_filtering" data-toggle="tab">{{ _('Groups') }}</a></li>
     </ul>
 
     <div class="tab-content">
-        <div id="server_connection" class="tab-pane active">
+        <div id="plugin_auth_ldap_settings_server_connection" class="tab-pane active">
 
             <div class="control-group">
 
                 <legend>{{ _('Server') }}</legend>
 
-                <label for="uri" class="control-label">{{ _('LDAP URI') }}</label>
+                <label for="plugin_auth_ldap_settings_uri" class="control-label">{{ _('LDAP URI') }}</label>
                 <div class="controls">
-                    <input id="uri" type="text" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_uri" type="text" class="input-block-level"
                            data-bind="value: settings.plugins.auth_ldap.uri"
                            placeholder="ldaps://ldap.example.com">
                     <span class="help-inline">The URI of the LDAP server. Must include the protocol, and may include the port number. (for example <code>ldaps://example.com:1337</code>)</span>
                 </div>
 
-                <label for="request_tls_cert" class="control-label">{{ _('Request TLS Certificate') }}</label>
+                <label for="plugin_auth_ldap_settings_request_tls_cert"
+                       class="control-label">{{ _('Request TLS Certificate') }}</label>
                 <div class="controls">
-                    <input id="request_tls_cert" type="checkbox" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_request_tls_cert" type="checkbox" class="input-block-level"
                            data-bind="checked: settings.plugins.auth_ldap.request_tls_cert">
                 </div>
             </div>
@@ -39,24 +41,26 @@
                     user that create an authenticated bind to the server in order to search for other users.
                 </div>
 
-                <label for="auth_user" class="control-label">{{ _('Authenticated bind user') }}</label>
+                <label for="plugin_auth_ldap_settings_auth_user"
+                       class="control-label">{{ _('Authenticated bind user') }}</label>
                 <div class="controls">
-                    <input id="auth_user" type="text" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_auth_user" type="text" class="input-block-level"
                            data-bind="value: settings.plugins.auth_ldap.auth_user"
                            placeholder="EXAMPLE\admin or admin@example.com or cn=admin,dc=example,dc=com">
                     <span class="help-inline">Entered as a a distinguished name (<code>uid=authuser,dc=example,dc=com</code>), principle name (<code>authuser@example.com</code>), or as a UID (<code>example\authuser</code>)</span>
                 </div>
 
-                <label for="auth_password" class="control-label">{{ _('Authenticated bind password') }}</label>
+                <label for="plugin_auth_ldap_settings_auth_password"
+                       class="control-label">{{ _('Authenticated bind password') }}</label>
                 <div class="controls">
-                    <input id="auth_password" type="password" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_auth_password" type="password" class="input-block-level"
                            data-bind="value: settings.plugins.auth_ldap.auth_password">
                     <span class="help-inline">Due to the OctoPrint settings architecture, this password will be stored in `config.yaml` in clear text.</span>
                 </div>
             </div>
         </div>
 
-        <div id="user_configuration" class="tab-pane">
+        <div id="plugin_auth_ldap_settings_user_configuration" class="tab-pane">
             <div class="control-group">
 
                 <legend>{{ _('Search Base') }}</legend>
@@ -65,16 +69,17 @@
                     and groups that will need access to this instance of OctoPrint.
                 </div>
 
-                <label for="search_base" class="control-label">{{ _('Search base') }}</label>
+                <label for="plugin_auth_ldap_settings_search_base" class="control-label">{{ _('Search base') }}</label>
                 <div class="controls">
-                    <input id="search_base" type="text" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_search_base" type="text" class="input-block-level"
                            data-bind="value: settings.plugins.auth_ldap.search_base" placeholder="DC=example,DC=com">
                     <span class="help-inline">If connecting to a Microsoft LDAP server, the search base must include an organizational unit (e.g. <code>ou=All users,dc=example,dc=com</code>), however OpenLDAP will accept a domain controller (e.g. <code>dc=example,dc=com</code>) as the search base.</span>
                 </div>
 
-                <label for="search_filter" class="control-label">{{ _('Search filter') }}</label>
+                <label for="plugin_auth_ldap_settings_search_filter"
+                       class="control-label">{{ _('Search filter') }}</label>
                 <div class="controls">
-                    <input id="search_filter" type="text" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_search_filter" type="text" class="input-block-level"
                            data-bind="value: settings.plugins.auth_ldap.search_filter" placeholder="uid=%s">
                     <small>Use <code>%s</code> as placeholder for login user ID. The default filter is
                         <code>uid=%s</code>, but on Microsoft LDAP <code>userPrincipalName=%s@example.com</code> may
@@ -86,9 +91,10 @@
 
                 <legend>{{ _('Caching and User Defaults') }}</legend>
 
-                <label for="search_term_transform" class="control-label">{{ _('Search term transformation') }}</label>
+                <label for="plugin_auth_ldap_settings_search_term_transform"
+                       class="control-label">{{ _('Search term transformation') }}</label>
                 <div class="controls">
-                    <input id="search_term_transform" type="text" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_search_term_transform" type="text" class="input-block-level"
                            data-bind="value: settings.plugins.auth_ldap.search_term_transform" placeholder="lower">
                     <small>A python string transformation (e.g. <code>lower</code> or <code>upper</code>) used to limit
                         case-sensitivity when searching for users (converting everyone to lowercase avoids
@@ -96,54 +102,57 @@
                         being different users.</small>
                 </div>
 
-                <label for="local_cache" class="control-label">{{ _('Local cache') }}</label>
+                <label for="plugin_auth_ldap_settings_local_cache" class="control-label">{{ _('Local cache') }}</label>
                 <div class="controls">
-                    <input id="local_cache" type="checkbox" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_local_cache" type="checkbox" class="input-block-level"
                            data-bind="checked: settings.plugins.auth_ldap.local_cache">
                     <span class="help-inline">By default, LDAP users are not cached locally to avoid complex permissions checks. However, caching users locally does allow for users (and groups) to receive customized permissions on this local OctoPrint instance, either individually or based on their LDAP group membership.</span>
                 </div>
 
-                <label for="default_user" class="control-label">{{ _('Default User group') }}</label>
+                <label for="plugin_auth_ldap_settings_default_user"
+                       class="control-label">{{ _('Default User group') }}</label>
                 <div class="controls">
-                    <input id="default_user" type="checkbox" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_default_user" type="checkbox" class="input-block-level"
                            data-bind="checked: settings.plugins.auth_ldap.default_user_group">
                     <span class="help-inline">LDAP users will automatically become members of the generic OctoPrint Users group. (Uncheck to configure narrower permissions based on LDAP group membership.)</span>
                 </div>
 
-                <label for="default_admin" class="control-label">{{ _('Default Admin group') }}</label>
+                <label for="plugin_auth_ldap_settings_default_admin"
+                       class="control-label">{{ _('Default Admin group') }}</label>
                 <div class="controls">
-                    <input id="default_admin" type="checkbox" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_default_admin" type="checkbox" class="input-block-level"
                            data-bind="checked: settings.plugins.auth_ldap.default_admin_group">
                     <span class="help-inline">LDAP users will automatically be members of the generic OctoPrint Admin group, having full access to all settings. (Uncheck for sanity.)</span>
                 </div>
             </div>
         </div>
 
-        <div id="group_filtering" class="tab-pane">
+        <div id="plugin_auth_ldap_settings_group_filtering" class="tab-pane">
             <div class="control-group">
 
                 <legend>{{ _('Filter by LDAP Group') }}</legend>
 
-                <label for="ou" class="control-label">{{ _('Organizational Units') }}</label>
+                <label for="plugin_auth_ldap_settings_ou" class="control-label">{{ _('Organizational Units') }}</label>
                 <div class="controls">
-                    <input id="ou" type="text" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_ou" type="text" class="input-block-level"
                            data-bind="value: settings.plugins.auth_ldap.ou"
                            placeholder="Lab Users, Lab Staff, Students">
                     <span class="help-inline">Common names or other identifying fields for LDAP groups whose members will be allowed to sign in. If this is left blank, all users that can be found on the LDAP server from the search base will be allowed to log in. A comma-delimited list.</span>
                 </div>
 
-                <label for="ou_filter" class="control-label">{{ _('OU Filter') }}</label>
+                <label for="plugin_auth_ldap_settings_ou_filter" class="control-label">{{ _('OU Filter') }}</label>
                 <div class="controls">
-                    <input id="ou_filter" type="text" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_ou_filter" type="text" class="input-block-level"
                            data-bind="value: settings.plugins.auth_ldap.ou_filter" placeholder="ou=%s">
                     <small>Use <code>%s</code> as placeholder for group name. A filter to convert the list of common
                         names into an LDAP search to identify the actual group memberships of users. The default value
                         is <code>ou=%s</code></small>
                 </div>
 
-                <label for="ou_member_filter" class="control-label">{{ _('OU Member Filter') }}</label>
+                <label for="plugin_auth_ldap_settings_ou_member_filter"
+                       class="control-label">{{ _('OU Member Filter') }}</label>
                 <div class="controls">
-                    <input id="ou_member_filter" type="text" class="input-block-level"
+                    <input id="plugin_auth_ldap_settings_ou_member_filter" type="text" class="input-block-level"
                            data-bind="value: settings.plugins.auth_ldap.ou_member_filter" placeholder="uniqueMember=%s">
                     <small>Use <code>%s</code> as placeholder for user's distinguished name. A filter to confirm a
                         user's membership in a group. The default value is <code>uniqueMember=%s</code></small>
