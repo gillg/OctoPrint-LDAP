@@ -23,13 +23,13 @@ apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
 You can install this via the OctoPrint plugin manager GUI using this URL:
 
 ```
-https://github.com/gillg/OctoPrint-LDAP/archive/master.zip
+https://github.com/battis/OctoPrint-LDAP/archive/master.zip
 ```
 
 The plugin may also be installed within the oprint venv using the command
 
 ```bash
-pip install https://github.com/gillg/OctoPrint-LDAP/archive/master.zip
+pip install https://github.com/battis/OctoPrint-LDAP/archive/master.zip
 ```
 
 #### General Configuration
@@ -172,3 +172,12 @@ userid = getattr(str, "lower")(str(userid))
 ```
 
 Note that this does not provide a capability for more nuanced transformations at this pouint.
+
+## Contributors
+
+Original design and implementation by [Gillaume Gill](https://github.com/gillg/OctoPrint-LDAP).
+
+Authenticated lookup, configuration and caching by [Seth Battis](https://github.com/battis/OctoPrint-LDAP).
+
+Initial OctoPrint 1.4 compatibility by [Paul K. Stelis](https://github.com/paulkstelis/OctoPrint-LDAP).
+

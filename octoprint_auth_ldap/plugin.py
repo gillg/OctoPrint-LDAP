@@ -26,12 +26,12 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin, RestartNeedingPlugin):
 
                 # version check: github repository
                 type="github_release",
-                user="gillg",
+                user="battis",
                 repo="OctoPrint-LDAP",
                 current=self._plugin_version,
 
                 # update method: pip
-                pip="https://github.com/gillg/OctoPrint-LDAP/archive/{target_version}.zip"
+                pip="https://github.com/battis/OctoPrint-LDAP/archive/{target_version}.zip"
             )
         )
 
@@ -134,4 +134,4 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin, RestartNeedingPlugin):
     # TemplatePlugin
 
     def get_template_configs(self):
-        return [dict(type="settings", custom_bindings=False)]
+        return [dict(type="settings")]
