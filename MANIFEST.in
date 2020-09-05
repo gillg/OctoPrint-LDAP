@@ -1,4 +1,2 @@
 include README.md
-recursive-include octoprint_preflight/templates *
-recursive-include octoprint_preflight/translations *
-recursive-include octoprint_preflight/static *
+include requirements.txt
