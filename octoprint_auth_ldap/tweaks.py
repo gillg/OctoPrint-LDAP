@@ -2,22 +2,21 @@
 from __future__ import absolute_import
 
 import logging
-from logging import Logger
 
-from octoprint.plugin import SettingsPlugin as OctoPrintSettingPlugin, PluginSettings
+from octoprint.plugin import SettingsPlugin as OctoPrintSettingPlugin
 
 
 class SettingsPlugin(OctoPrintSettingPlugin):
     @property
-    def settings(self) -> PluginSettings:
+    def settings(self):
         return self._settings
 
     @property
-    def identifier(self) -> str:
+    def identifier(self):
         return self._identifier
 
     @property
-    def logger(self) -> Logger:
+    def logger(self):
         if "_logger" in self.__dict__:
             return self._logger
         else:
@@ -26,7 +25,7 @@ class SettingsPlugin(OctoPrintSettingPlugin):
 
 
 class DependentOnSettingsPlugin:
-    def __init__(self, plugin: SettingsPlugin):
+    def __init__(self, plugin):
         self._plugin = plugin
 
     @property
@@ -34,9 +33,9 @@ class DependentOnSettingsPlugin:
         return self._plugin
 
     @property
-    def logger(self) -> Logger:
+    def logger(self):
         return self._plugin.logger
 
     @property
-    def settings(self) -> PluginSettings:
+    def settings(self):
         return self._plugin.settings

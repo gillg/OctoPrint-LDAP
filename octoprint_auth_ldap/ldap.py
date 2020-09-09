@@ -6,11 +6,11 @@ import json
 import ldap
 from octoprint_auth_ldap.constants import AUTH_PASSWORD, AUTH_USER, DISTINGUISHED_NAME, OU, OU_FILTER, OU_MEMBER_FILTER, \
     REQUEST_TLS_CERT, SEARCH_BASE, URI
-from octoprint_auth_ldap.tweaks import DependentOnSettingsPlugin, SettingsPlugin
+from octoprint_auth_ldap.tweaks import DependentOnSettingsPlugin
 
 
 class LDAPConnection(DependentOnSettingsPlugin):
-    def __init__(self, plugin: SettingsPlugin):
+    def __init__(self, plugin):
         DependentOnSettingsPlugin.__init__(self, plugin)
 
     def get_client(self, user=None, password=None):
@@ -85,9 +85,9 @@ class LDAPConnection(DependentOnSettingsPlugin):
 
 class DependentOnLDAPConnection:
     # noinspection PyShadowingNames
-    def __init__(self, ldap: LDAPConnection):
+    def __init__(self, ldap):
         self._ldap = ldap
 
     @property
-    def ldap(self) -> LDAPConnection:
+    def ldap(self):
         return self._ldap

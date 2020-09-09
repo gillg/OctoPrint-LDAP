@@ -4,7 +4,7 @@ from __future__ import absolute_import
 from octoprint_auth_ldap.plugin import AuthLDAPPlugin
 
 __plugin_name__ = "Auth LDAP"
-__plugin_pythoncompat__ = ">=3,<4"
+__plugin_pythoncompat__ = ">=2.7,<4"
 
 
 def __plugin_load__():

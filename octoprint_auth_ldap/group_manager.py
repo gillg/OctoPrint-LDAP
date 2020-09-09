@@ -12,14 +12,14 @@ from octoprint.util import atomic_write
 from octoprint_auth_ldap.constants import OU, OU_FILTER, DISTINGUISHED_NAME, LDAP_PARENT_GROUP_NAME, \
     LDAP_PARENT_GROUP_DESCRIPTION, LDAP_PARENT_GROUP_KEY, LDAP_GROUP_KEY_PREFIX
 from octoprint_auth_ldap.group import LDAPGroup
-from octoprint_auth_ldap.ldap import LDAPConnection, DependentOnLDAPConnection
-from octoprint_auth_ldap.tweaks import SettingsPlugin, DependentOnSettingsPlugin
+from octoprint_auth_ldap.ldap import DependentOnLDAPConnection
+from octoprint_auth_ldap.tweaks import DependentOnSettingsPlugin
 from octoprint_auth_ldap.user import LDAPUser
 
 
 class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, DependentOnLDAPConnection):
 
-    def __init__(self, plugin: SettingsPlugin, ldap: LDAPConnection, path=None):
+    def __init__(self, plugin, ldap, path=None):
         DependentOnSettingsPlugin.__init__(self, plugin)
         DependentOnLDAPConnection.__init__(self, ldap)
         FilebasedGroupManager.__init__(self, path)
@@ -90,7 +90,7 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
             if notify:
                 self._notify_listeners("added", group)
 
-    def _to_group_key(self, ou_common_name: str) -> str:
+    def _to_group_key(self, ou_common_name):
         return "%s%s" % (
             self.settings.get([LDAP_GROUP_KEY_PREFIX]), re.sub(r"\W+", "_", ou_common_name.strip().lower()))
 

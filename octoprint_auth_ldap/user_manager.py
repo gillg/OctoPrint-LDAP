@@ -11,20 +11,20 @@ from octoprint.util import atomic_write
 from octoprint_auth_ldap.constants import LOCAL_CACHE, SEARCH_FILTER, SEARCH_TERM_TRANSFORM, DISTINGUISHED_NAME, OU
 from octoprint_auth_ldap.group import LDAPGroup
 from octoprint_auth_ldap.group_manager import LDAPGroupManager
-from octoprint_auth_ldap.ldap import LDAPConnection, DependentOnLDAPConnection
+from octoprint_auth_ldap.ldap import DependentOnLDAPConnection
 from octoprint_auth_ldap.tweaks import DependentOnSettingsPlugin
 from octoprint_auth_ldap.user import LDAPUser
 
 
 class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, DependentOnLDAPConnection):
 
-    def __init__(self, plugin, ldap: LDAPConnection, **kwargs):
+    def __init__(self, plugin, ldap, **kwargs):
         DependentOnSettingsPlugin.__init__(self, plugin)
         DependentOnLDAPConnection.__init__(self, ldap)
         FilebasedUserManager.__init__(self, group_manager=LDAPGroupManager(plugin=plugin, ldap=ldap), **kwargs)
 
     @property
-    def group_manager(self) -> LDAPGroupManager:
+    def group_manager(self):
         return self._group_manager
 
     def find_user(self, userid=None, apikey=None, session=None):
