@@ -18,6 +18,8 @@ Minimally, on Raspbian:
 apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
 ```
 
+If installing on Windows, you will need to find the proper pre-built binary of python-ldap, as directed in the [python-ldap documentation](https://www.python-ldap.org/en/python-ldap-3.3.0/installing.html#pre-built-binaries).
+
 #### Installation
 
 You can install this via the OctoPrint plugin manager GUI using this URL:
