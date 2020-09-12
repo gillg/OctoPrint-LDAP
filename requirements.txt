@@ -1,13 +1,7 @@
 ###
 # This file is only here to make sure that something like
 #
-#    pip install -e .[develop]
+#    pip install -e .
 #
-# works as expected. Requirements can be found in setup.py in the
-# variables INSTALL_REQUIRES and EXTRA_REQUIRES.
+# works as expected. Requirements can be found in setup.py.
 ###
-
-## To install correctly python-ldap you need :
-# apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
-
-.
