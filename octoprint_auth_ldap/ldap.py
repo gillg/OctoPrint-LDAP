@@ -5,7 +5,7 @@ import json
 
 import ldap
 from octoprint_auth_ldap.constants import AUTH_PASSWORD, AUTH_USER, DISTINGUISHED_NAME, OU, OU_FILTER, OU_MEMBER_FILTER, \
-    REQUEST_TLS_CERT, SEARCH_BASE, URI
+    REQUEST_TLS_CERT, REFERRALS_IGNORE, SEARCH_BASE, URI
 from octoprint_auth_ldap.tweaks import DependentOnSettingsPlugin
 
 
@@ -31,6 +31,8 @@ class LDAPConnection(DependentOnSettingsPlugin):
                 client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_DEMAND)
             else:
                 client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
+            if self.settings.get([REFERRALS_IGNORE]):
+                client.set_option(ldap.OPT_REFERRALS, 0)
             if user is not None:
                 self.logger.debug("Binding to LDAP as %s" % user)
                 client.bind_s(user, password)
