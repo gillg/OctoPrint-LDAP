@@ -56,13 +56,15 @@ class LDAPConnection(DependentOnSettingsPlugin):
                 client.unbind_s()
                 if result:
                     dn, data = result[0]
-                    """
-                    # Dump LDAP search query results to logger
-                    self.logger.debug("dn: %s" % dn)
-                    for key, value in data.items():
-                        self.logger.debug("%s: %s" % (key, value))
-                    """
-                    return dict(dn=dn, data=data)
+                    if dn is not None:
+                        """
+                        # Dump LDAP search query results to logger
+                        self.logger.debug("dn: %s" % dn)
+                        for key, value in data.items():
+                            self.logger.debug("%s: %s" % (key, value))
+                        """
+                    
+                        return dict(dn=dn, data=data)
         except ldap.LDAPError as e:
             self.logger.error(json.dumps(e))
         return None
