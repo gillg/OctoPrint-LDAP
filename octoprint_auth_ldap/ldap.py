@@ -28,8 +28,10 @@ class LDAPConnection(DependentOnSettingsPlugin):
             client = ldap.initialize(uri)
             if self.settings.get([REQUEST_TLS_CERT]):
                 self.logger.debug("Requesting TLS certificate")
+                ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_DEMAND)
                 client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_DEMAND)
             else:
+                ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
                 client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
             if self.settings.get([REFERRALS_IGNORE]):
                 client.set_option(ldap.OPT_REFERRALS, 0)
