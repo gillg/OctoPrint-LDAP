@@ -30,6 +30,13 @@
                     <input id="plugin_auth_ldap_settings_request_tls_cert" type="checkbox" class="input-block-level"
                            data-bind="checked: settings.plugins.auth_ldap.request_tls_cert">
                 </div>
+
+                <label for="plugin_auth_ldap_settings_referrals_ignore"
+                       class="control-label">{{ _('Ignore Referrals') }}</label>
+                <div class="controls">
+                    <input id="plugin_auth_ldap_settings_referrals_ignore" type="checkbox" class="input-block-level"
+                           data-bind="checked: settings.plugins.auth_ldap.referrals_ignore">
+                </div>
             </div>
 
             <div class="control-group">

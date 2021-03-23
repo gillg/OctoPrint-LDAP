@@ -15,6 +15,7 @@ OU_MEMBER_FILTER = "ou_member_filter"
 OU = "ou"
 LOCAL_CACHE = "local_cache",
 REQUEST_TLS_CERT = "request_tls_cert"
+REFERRALS_IGNORE = "referrals_ignore"
 SEARCH_BASE = "search_base"
 SEARCH_FILTER = "search_filter"
 SEARCH_TERM_TRANSFORM = "search_term_transform"

@@ -157,6 +157,18 @@ plugins:
 
 This configuration would generate a search filter that would test against each provided OU name in turn, using the user's LDAP-provided DN: `"(&(cn=%s)(uniqueMember=%s))" % (ou_name, dn)`, which would end up looking like `(&(cn=Lab Users)(uniqueMember=uid=example_user,dc=example.dc=com))`
 
+##### MS AD compatibility
+
+Quote from python-ldap FAQ: "When searching from the domain level, MS AD returns referrals (search continuations) for some objects to indicate to the client where to look for these objects. Client-chasing of referrals is a broken concept, since LDAPv3 does not specify which credentials to use when chasing the referral. Windows clients are supposed to simply use their Windows credentials, but this does not work in general when chasing referrals received from and pointing to arbitrary LDAP servers. Therefore, per default, libldap automatically chases the referrals internally with an anonymous access which fails with MS AD. So, the best thing to do is to switch this behaviour off:"
+
+In short: To make the plugin compatible with MS AD, referrals must be disabled. This can be done via the checkbox in the Octoprint settings dialogue or directly through config.yaml with the following keys:
+
+```YAML
+plugins:
+  auth_ldap:
+    referrals_ignore: True
+```
+
 ##### Search Term Transform
 
 OctoPrint searches for users in a case-sensitve manner by default. However, it becomes a management issue (if local caching is turned on) to have cached each case-sensitive search for the same user (e.g. `testuser`, `TESTUSER`, `TestUser`, `tEsTuSeR`, etc.). In order to manage this issue, the `search_term_transform` setting allows you to specify a string transformation (e.g. `upper` or `lower`) to be applied to search terms if they are not found already cached.
