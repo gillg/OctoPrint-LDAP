@@ -77,7 +77,7 @@ class LDAPConnection(DependentOnSettingsPlugin):
                                  "(" + ou_filter % ou_common_name.strip() + ")" +
                                  "(" + (ou_member_filter % dn) + ")" +
                                  ")")
-            if result is not None:
+            if result is not None and result[DISTINGUISHED_NAME] is not None:
                 self.logger.debug("%s is a member of %s" % (dn, result[DISTINGUISHED_NAME]))
                 memberships.append(ou_common_name)
         return memberships
