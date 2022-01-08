@@ -37,6 +37,8 @@ class LDAPConnection(DependentOnSettingsPlugin):
             return client
         except ldap.INVALID_CREDENTIALS:
             self.logger.error("Invalid credentials to bind to LDAP as %s" % user)
+        except ldap.SERVER_DOWN as e:
+            self.logger.error("the server at %s is down" % uri )
         except ldap.LDAPError as e:
             self.logger.error(json.dumps(e))
         return None
