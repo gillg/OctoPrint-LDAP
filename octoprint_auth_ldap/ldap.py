@@ -5,7 +5,7 @@ import json
 
 import ldap
 from octoprint_auth_ldap.constants import AUTH_PASSWORD, AUTH_USER, DISTINGUISHED_NAME, OU, OU_FILTER, OU_MEMBER_FILTER, \
-    REQUEST_TLS_CERT, SEARCH_BASE, URI
+    REQUEST_TLS_CERT, REFERRALS_IGNORE, SEARCH_BASE, URI
 from octoprint_auth_ldap.tweaks import DependentOnSettingsPlugin
 
 
@@ -28,9 +28,13 @@ class LDAPConnection(DependentOnSettingsPlugin):
             client = ldap.initialize(uri)
             if self.settings.get([REQUEST_TLS_CERT]):
                 self.logger.debug("Requesting TLS certificate")
+                ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_DEMAND)
                 client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_DEMAND)
             else:
+                ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
                 client.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
+            if self.settings.get([REFERRALS_IGNORE]):
+                client.set_option(ldap.OPT_REFERRALS, 0)
             if user is not None:
                 self.logger.debug("Binding to LDAP as %s" % user)
                 client.bind_s(user, password)
@@ -54,13 +58,15 @@ class LDAPConnection(DependentOnSettingsPlugin):
                 client.unbind_s()
                 if result:
                     dn, data = result[0]
-                    """
-                    # Dump LDAP search query results to logger
-                    self.logger.debug("dn: %s" % dn)
-                    for key, value in data.items():
-                        self.logger.debug("%s: %s" % (key, value))
-                    """
-                    return dict(dn=dn, data=data)
+                    if dn is not None:
+                        """
+                        # Dump LDAP search query results to logger
+                        self.logger.debug("dn: %s" % dn)
+                        for key, value in data.items():
+                            self.logger.debug("%s: %s" % (key, value))
+                        """
+                    
+                        return dict(dn=dn, data=data)
         except ldap.LDAPError as e:
             self.logger.error(json.dumps(e))
         return None

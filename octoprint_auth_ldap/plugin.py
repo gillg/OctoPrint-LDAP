@@ -4,7 +4,7 @@ from __future__ import absolute_import
 from octoprint.plugin import TemplatePlugin, RestartNeedingPlugin
 from octoprint.settings import settings
 from octoprint_auth_ldap.constants import DEFAULT_ADMIN_GROUP, DEFAULT_USER_GROUP, OU_FILTER, OU_MEMBER_FILTER, OU, \
-    REQUEST_TLS_CERT, SEARCH_BASE, URI
+    REQUEST_TLS_CERT, REFERRALS_IGNORE, SEARCH_BASE, URI
 from octoprint_auth_ldap.ldap import LDAPConnection
 from octoprint_auth_ldap.tweaks import SettingsPlugin
 from octoprint_auth_ldap.user_manager import LDAPUserManager
@@ -56,6 +56,7 @@ class AuthLDAPPlugin(SettingsPlugin, TemplatePlugin, RestartNeedingPlugin):
             ou=None,
             local_cache=False,
             request_tls_cert=None,
+            referrals_ignore=None,
             search_base=None,
             search_filter="uid=%s",
             search_term_transform=None,
