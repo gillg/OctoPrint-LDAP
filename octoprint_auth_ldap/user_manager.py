@@ -137,6 +137,7 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
                 self.logger.debug("%s was %sauthenticated" % (user.get_name(), "" if authenticated else "not "))
                 if authenticated:
                     user._passwordHash = LDAPUserManager.create_password_hash(password, settings=self._settings)
+                    self._save(force=True)
                 return authenticated
             else:
                 self.logger.debug("%s is inactive or no longer a member of required groups" % user.get_id())
@@ -187,6 +188,7 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
                         self.logger.debug("Loading %s as %s" % (name, LDAPUser.__name__))
                         self._users[name] = LDAPUser(
                             username=name,
+                            passwordHash=attributes["password"],
                             active=attributes["active"],
                             permissions=permissions,
                             groups=groups,
@@ -234,7 +236,7 @@ class LDAPUserManager(FilebasedUserManager, DependentOnSettingsPlugin, Dependent
                     # password field has to exist because of how FilebasedUserManager processes
                     # data, but an empty password hash cannot match any entered password (as
                     # whatever the user enters will be hashed... even an empty password.
-                    "password": None,
+                    "password": user._passwordHash,
 
                     "active": user._active,
                     "groups": self._from_groups(*user._groups),
