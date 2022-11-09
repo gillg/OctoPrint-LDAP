@@ -151,6 +151,7 @@ class LDAPGroupManager(FilebasedGroupManager, DependentOnSettingsPlugin, Depende
             try:
                 with io.open(self._groupfile, 'rt', encoding='utf-8') as f:
                     data = yaml.safe_load(f)
+                    version = data.pop("_version", 1)
 
                 if "groups" not in data:
                     groups = data

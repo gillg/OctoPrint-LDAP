@@ -25,7 +25,7 @@ If installing on Windows, you will need to find the proper pre-built binary of p
 You can install this via the OctoPrint plugin manager GUI using this URL:
 
 ```
-https://github.com/battis/OctoPrint-LDAP/archive/master.zip
+https://github.com/gillg/OctoPrint-LDAP/archive/refs/heads/master.zip
 ```
 
 The plugin may also be installed within the oprint venv using the command

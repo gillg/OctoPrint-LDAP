@@ -11,6 +11,7 @@ class LDAPUser(User):
     def __init__(
             self,
             username,
+            passwordHash=None,
             active=True,
             permissions=None,
             groups=None,
@@ -21,7 +22,7 @@ class LDAPUser(User):
         User.__init__(
             self,
             username=username,
-            passwordHash=None,
+            passwordHash=passwordHash,
             active=active,
             permissions=permissions,
             groups=groups,
