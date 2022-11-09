@@ -5,17 +5,30 @@
 
 #### Prerequisites
 
-Before installing this plugin, consult [the python-ldap documentation for its build prerequisites on your system](https://www.python-ldap.org/en/python-ldap-3.3.0/installing.html#build-prerequisites) or [instructions for installing pre-built binaries on your system](https://www.python-ldap.org/en/python-ldap-3.3.0/installing.html#pre-built-binaries). For example, on Debian-based systems (such as Raspbian), it is necessary to preinstall a collection of supporting libraries in order for python-ldap to install properly:
+Before installing this plugin, consult [the python-ldap documentation for its build prerequisites on your system](https://www.python-ldap.org/en/python-ldap-3.3.0/installing.html#build-prerequisites) or [instructions for installing pre-built binaries on your system](https://www.python-ldap.org/en/python-ldap-3.3.0/installing.html#pre-built-binaries). For example, on Debian-based systems (such as Raspbian) with octoprint version 1.8.6 and above, it is necessary to preinstall a collection of supporting libraries in order for python-ldap to install properly:
 
 ```bash
 apt-get install build-essential python3-dev python2.7-dev libldap2-dev \
     libsasl2-dev slapd ldap-utils python-tox lcov valgrind
 ```
 
-Minimally, on Raspbian:
+Minimally, on Raspbian with octoprint version 1.8.6 and above:
 
 ```bash
 apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
+```
+
+If you are using the plugin with an octoprint version before 1.8.6 you also need to install passlib librarie:
+
+```bash
+apt-get install build-essential python3-dev python2.7-dev libldap2-dev \
+    libsasl2-dev slapd ldap-utils python-tox lcov valgrind passlib
+```
+
+or for minimal:
+
+```bash
+apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev passlib
 ```
 
 If installing on Windows, you will need to find the proper pre-built binary of python-ldap, as directed in the [python-ldap documentation](https://www.python-ldap.org/en/python-ldap-3.3.0/installing.html#pre-built-binaries).
@@ -31,7 +44,7 @@ https://github.com/gillg/OctoPrint-LDAP/archive/refs/heads/master.zip
 The plugin may also be installed within the oprint venv using the command
 
 ```bash
-pip install https://github.com/battis/OctoPrint-LDAP/archive/master.zip
+pip install https://github.com/gillg/OctoPrint-LDAP/archive/refs/heads/master.zip
 ```
 
 #### General Configuration
