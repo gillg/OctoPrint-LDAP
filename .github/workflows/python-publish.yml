@@ -6,7 +6,7 @@ name: Upload Python Package
 
 on:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
   deploy:
@@ -15,19 +15,26 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    
+    - uses: actions/setup-python@v4
+      with:
+        python-version: 3.x
+        
     - name: Set up Python virtualenv
       run: |
         python3 -m venv .venv
         source .venv/bin/activate
+        
     - name: Install dependencies
       run: |
         source .venv/bin/activate
         python -m pip install --upgrade pip
         pip install --upgrade setuptools wheel twine
+        
     - name: Build and publish
       env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
       run: |
         source .venv/bin/activate
         rm -rf dist/
