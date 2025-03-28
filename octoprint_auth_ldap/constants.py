@@ -3,6 +3,7 @@
 # settings keys
 # DO NOT CHANGE without updating AuthLDAPPlugin.on_settings_migrate()
 AUTH_PASSWORD = "auth_password"
+AUTH_PASSWORD_FILE = "auth_password_file"
 AUTH_USER = "auth_user"
 DEFAULT_ADMIN_GROUP = "default_admin_group"
 DEFAULT_USER_GROUP = "default_user_group"

@@ -81,6 +81,19 @@ plugins:
     auth_password: s00p3rS3KRE7
 ```
 
+Alternatively you can use `auth_password_file` to avoid keeping the password in
+your configuration file.  Be mindful of line breaks in your password file.  An
+end-of-line at the end of the file will place a line break in the password
+submitted to LDAP.  Also ensure the Octoprint user has permission to read the
+file.
+
+```YAML
+plugins:
+  auth_ldap:
+    auth_user: example\authuser
+    auth_password_file: /path/to/password/file
+```
+
 If no authentication username is provided, an anonymous search will be performed (which may not generate useful results on most servers). The `auth_user` can be provided as a distinguished name (`uid=authuser,dc=example,dc=com`), principal name (`authuser@example.com`) or UID (`example\authuser`), depending on the needs of the system.
 
 #### Default Roles/Activity

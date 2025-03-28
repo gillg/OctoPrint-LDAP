@@ -4,9 +4,10 @@ from __future__ import absolute_import
 import json
 
 import ldap
-from octoprint_auth_ldap.constants import AUTH_PASSWORD, AUTH_USER, DISTINGUISHED_NAME, OU, OU_FILTER, OU_MEMBER_FILTER, \
+from octoprint_auth_ldap.constants import AUTH_PASSWORD, AUTH_PASSWORD_FILE, AUTH_USER, DISTINGUISHED_NAME, OU, OU_FILTER, OU_MEMBER_FILTER, \
     REQUEST_TLS_CERT, SEARCH_BASE, URI
 from octoprint_auth_ldap.tweaks import DependentOnSettingsPlugin
+from pathlib import Path
 
 
 class LDAPConnection(DependentOnSettingsPlugin):
@@ -21,7 +22,8 @@ class LDAPConnection(DependentOnSettingsPlugin):
 
         if not user:
             user = self.settings.get([AUTH_USER])
-            password = self.settings.get([AUTH_PASSWORD])
+            password = self.settings.get([AUTH_PASSWORD]) or \
+                Path(self.settings.get([AUTH_PASSWORD_FILE])).read_text()
 
         try:
             self.logger.debug("Initializing LDAP connection to %s" % uri)
