@@ -1,0 +1,44 @@
+# This workflow will upload a Python Package using Twine when a release is created
+# For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
+# Inspired from https://github.com/bitsy-ai/octoprint-nanny-plugin
+
+name: Upload Python Package
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - uses: actions/setup-python@v4
+      with:
+        python-version: 3.x
+        
+    - name: Set up Python virtualenv
+      run: |
+        python3 -m venv .venv
+        source .venv/bin/activate
+        
+    - name: Install dependencies
+      run: |
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+        pip install --upgrade setuptools wheel twine
+        
+    - name: Build and publish
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+      run: |
+        source .venv/bin/activate
+        rm -rf dist/
+        python3 setup.py sdist && ls -l dist
+        python3 setup.py bdist_wheel && ls -l dist
+        twine upload dist/*
+        
